@@ -19,6 +19,12 @@ export const SlideCanvas: React.FC = () => {
   const activeLayout = useActiveLayout();
   const activeMaster = useActiveMaster();
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
+  const selectedPlaceholderIdx = useSlideStore(
+    (s) => s.selectedPlaceholderIdx,
+  );
+  const setSelectedPlaceholder = useSlideStore(
+    (s) => s.setSelectedPlaceholder,
+  );
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -70,6 +76,13 @@ export const SlideCanvas: React.FC = () => {
           layout={activeLayout}
           theme={activeMaster.theme}
           content={activeSlide.content}
+          showPlaceholderOutlines={true}
+          selectedPlaceholderIdx={selectedPlaceholderIdx}
+          onPlaceholderClick={(ph) => {
+            setSelectedPlaceholder(
+              selectedPlaceholderIdx === ph.idx ? null : ph.idx,
+            );
+          }}
         />
         <AnnotationLayer
           scale={scale}

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Trash2, Upload, HelpCircle } from "lucide-react";
 import {
   useActiveLayout,
   useActiveMaster,
@@ -7,9 +8,12 @@ import {
 } from "@/store/slideStore";
 import { Select } from "./ui/select";
 import { Separator } from "./ui/separator";
+import { Button } from "./ui/button";
 import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
+import { CodeExportButton } from "./CodeExportButton";
+import { ProjectManager } from "./ProjectManager";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -28,6 +32,33 @@ export const SettingsPanel: React.FC = () => {
   const setActiveMaster = useSlideStore((s) => s.setActiveMaster);
   const setLayoutForSlide = useSlideStore((s) => s.setLayoutForSlide);
 
+  // Template management
+  const templates = useSlideStore((s) => s.templates);
+  const activeTemplateId = useSlideStore((s) => s.activeTemplateId);
+  const setActiveTemplate = useSlideStore((s) => s.setActiveTemplate);
+  const deleteTemplate = useSlideStore((s) => s.deleteTemplate);
+  const showToast = useSlideStore((s) => s.showToast);
+  const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
+
+  // Hidden file input for uploading additional templates
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadMore = () => fileRef.current?.click();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pptx")) {
+      showToast("Bitte eine .pptx-Datei auswählen", "error");
+      return;
+    }
+    // Trigger the global upload handler via custom event (handled in App)
+    window.dispatchEvent(
+      new CustomEvent("slideforge:upload", { detail: file }),
+    );
+    e.target.value = "";
+  };
+
   if (!presentation || !activeMaster || !activeSlide || !activeLayout) {
     return null;
   }
@@ -41,12 +72,57 @@ export const SettingsPanel: React.FC = () => {
     label: l.name,
   }));
 
+  const templateOptions = templates.map((t) => ({
+    value: t.id,
+    label: `${t.name} (${t.fileName})`,
+  }));
+
   return (
     <aside
       style={{ width: 300 }}
       className="flex h-full flex-none flex-col border-l border-[var(--app-border)] bg-[var(--app-panel)]"
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
+        {/* Template switcher */}
+        {templates.length > 0 && (
+          <div>
+            <SectionLabel>Vorlage (PPTX)</SectionLabel>
+            <div className="flex items-center gap-1">
+              <div className="flex-1">
+                <Select
+                  value={activeTemplateId ?? ""}
+                  options={templateOptions}
+                  onValueChange={(v) => setActiveTemplate(v)}
+                />
+              </div>
+              <Button size="icon" variant="ghost" onClick={handleUploadMore} title="Weitere Vorlage hochladen">
+                <Upload size={13} />
+              </Button>
+              {activeTemplateId && templates.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  onClick={() => {
+                    if (activeTemplateId) deleteTemplate(activeTemplateId);
+                  }}
+                  title="Vorlage entfernen"
+                >
+                  <Trash2 size={13} />
+                </Button>
+              )}
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pptx"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+        )}
+
+        <Separator />
+
         <div>
           <SectionLabel>Folienmaster</SectionLabel>
           <Select
@@ -88,9 +164,30 @@ export const SettingsPanel: React.FC = () => {
         <Separator />
 
         <div>
-          <SectionLabel>Export</SectionLabel>
-          <ExportButton />
+          <SectionLabel>Projekt & Ordner</SectionLabel>
+          <ProjectManager />
         </div>
+
+        <Separator />
+
+        <div>
+          <SectionLabel>Export</SectionLabel>
+          <div className="flex flex-col gap-2">
+            <ExportButton />
+            <CodeExportButton />
+          </div>
+        </div>
+
+        <Separator />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOnboardingDone(false)}
+          className="w-full justify-start text-[var(--app-muted)]"
+        >
+          <HelpCircle size={12} /> Anleitung erneut anzeigen
+        </Button>
       </div>
     </aside>
   );

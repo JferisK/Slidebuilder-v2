@@ -1,7 +1,7 @@
 import * as React from "react";
-import { X } from "lucide-react";
+import { Crosshair, MousePointerSquareDashed, X } from "lucide-react";
 import type { Placeholder, SlideLayout } from "@/parser/pptxParser";
-import { useSlideStore } from "@/store/slideStore";
+import { useSlideStore, type AreaRect } from "@/store/slideStore";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tooltip } from "./ui/tooltip";
@@ -16,8 +16,15 @@ interface AnnotationLayerProps {
 }
 
 interface DraftPin {
-  x: number; // 0-1
-  y: number; // 0-1
+  x: number;
+  y: number;
+}
+
+interface DraftArea {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 function findNearestPlaceholder(
@@ -42,6 +49,24 @@ function findNearestPlaceholder(
   return best;
 }
 
+/** Placeholders whose bounding box overlaps a given area rect (all in %) */
+function findOverlappingPlaceholders(
+  layout: SlideLayout,
+  area: { x1: number; y1: number; x2: number; y2: number },
+): Placeholder[] {
+  const ax1 = Math.min(area.x1, area.x2);
+  const ay1 = Math.min(area.y1, area.y2);
+  const ax2 = Math.max(area.x1, area.x2);
+  const ay2 = Math.max(area.y1, area.y2);
+  return layout.placeholders.filter((p) => {
+    const px1 = p.position.x;
+    const py1 = p.position.y;
+    const px2 = p.position.x + p.position.w;
+    const py2 = p.position.y + p.position.h;
+    return px1 < ax2 && px2 > ax1 && py1 < ay2 && py2 > ay1;
+  });
+}
+
 function buildCopilotPrompt({
   masterName,
   layoutName,
@@ -49,6 +74,9 @@ function buildCopilotPrompt({
   relY,
   nearest,
   comment,
+  area,
+  overlapping,
+  selectedPlaceholder,
 }: {
   masterName: string;
   layoutName: string;
@@ -56,25 +84,53 @@ function buildCopilotPrompt({
   relY: number;
   nearest: Placeholder | null;
   comment: string;
+  area?: AreaRect;
+  overlapping?: Placeholder[];
+  selectedPlaceholder?: { idx: number; type: string } | null;
 }): string {
-  const nearestDesc = nearest
-    ? `"${nearest.type}" (idx: ${nearest.idx})`
-    : "keiner";
-  return `
-Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt.
+  const lines: string[] = [
+    "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt.",
+    "",
+    "Kontext:",
+    `- Aktiver Folienmaster: "${masterName}"`,
+    `- Aktives Layout: "${layoutName}"`,
+  ];
 
-Kontext:
-- Aktiver Folienmaster: "${masterName}"
-- Aktives Layout: "${layoutName}"
-- Angeklickte Position: x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%
-- Nächstliegender Placeholder: ${nearestDesc}
+  if (selectedPlaceholder) {
+    lines.push(
+      `- Ausgewählter Placeholder: "${selectedPlaceholder.type}" (idx: ${selectedPlaceholder.idx})`,
+    );
+  }
 
-Feedback des Nutzers:
-"${comment}"
+  if (area) {
+    const x1 = Math.round(Math.min(area.x1, area.x2) * 100);
+    const y1 = Math.round(Math.min(area.y1, area.y2) * 100);
+    const x2 = Math.round(Math.max(area.x1, area.x2) * 100);
+    const y2 = Math.round(Math.max(area.y1, area.y2) * 100);
+    lines.push(`- Markierter Bereich: (${x1}%,${y1}%) bis (${x2}%,${y2}%)`);
+    if (overlapping && overlapping.length > 0) {
+      const desc = overlapping
+        .map((p) => `"${p.type}" (idx: ${p.idx})`)
+        .join(", ");
+      lines.push(`- Placeholders im Bereich: ${desc}`);
+    }
+  } else {
+    lines.push(
+      `- Angeklickte Position: x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`,
+    );
+    if (nearest) {
+      lines.push(
+        `- Nächstliegender Placeholder: "${nearest.type}" (idx: ${nearest.idx})`,
+      );
+    }
+  }
 
-Bitte analysiere die Komponente und schlage eine konkrete Änderung vor.
-Zeige den geänderten Code-Abschnitt.
-  `.trim();
+  lines.push("", `Feedback des Nutzers:`, `"${comment}"`, "");
+  lines.push(
+    "Bitte analysiere die Komponente und schlage eine konkrete Änderung vor.",
+    "Zeige den geänderten Code-Abschnitt.",
+  );
+  return lines.join("\n").trim();
 }
 
 export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
@@ -88,8 +144,15 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const addAnnotation = useSlideStore((s) => s.addAnnotation);
   const removeAnnotation = useSlideStore((s) => s.removeAnnotation);
   const showToast = useSlideStore((s) => s.showToast);
+  const selectionMode = useSlideStore((s) => s.selectionMode);
+  const setSelectionMode = useSlideStore((s) => s.setSelectionMode);
+  const selectedPlaceholderIdx = useSlideStore(
+    (s) => s.selectedPlaceholderIdx,
+  );
 
-  const [draft, setDraft] = React.useState<DraftPin | null>(null);
+  const [draftPin, setDraftPin] = React.useState<DraftPin | null>(null);
+  const [draftArea, setDraftArea] = React.useState<DraftArea | null>(null);
+  const [drawingArea, setDrawingArea] = React.useState(false);
   const [draftComment, setDraftComment] = React.useState("");
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
 
@@ -97,30 +160,97 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     (a) => a.slideIndex === activeSlideIndex,
   );
 
+  const toSlideCoords = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
+    return {
+      xNorm: Math.max(0, Math.min(1, x / SLIDE_W)),
+      yNorm: Math.max(0, Math.min(1, y / SLIDE_H)),
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (selectionMode === "area") {
+      const { xNorm, yNorm } = toSlideCoords(e);
+      setDrawingArea(true);
+      setDraftArea({ x1: xNorm, y1: yNorm, x2: xNorm, y2: yNorm });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!drawingArea || !draftArea) return;
+    const { xNorm, yNorm } = toSlideCoords(e);
+    setDraftArea((prev) => (prev ? { ...prev, x2: xNorm, y2: yNorm } : prev));
+  };
+
+  const handleMouseUp = () => {
+    if (drawingArea && draftArea) {
+      const dx = Math.abs(draftArea.x2 - draftArea.x1);
+      const dy = Math.abs(draftArea.y2 - draftArea.y1);
+      if (dx > 0.01 && dy > 0.01) {
+        // Valid area, show comment popover
+        setDrawingArea(false);
+        setDraftComment("");
+      } else {
+        // Too small → treat as click and cancel
+        setDraftArea(null);
+        setDrawingArea(false);
+      }
+    }
+  };
+
   const handleLayerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    // Divide by scale to map from displayed pixels to unscaled 1280×720 space.
-    const unscaledX = (e.clientX - rect.left) / scale;
-    const unscaledY = (e.clientY - rect.top) / scale;
-    const xNorm = Math.max(0, Math.min(1, unscaledX / SLIDE_W));
-    const yNorm = Math.max(0, Math.min(1, unscaledY / SLIDE_H));
-    setDraft({ x: xNorm, y: yNorm });
+    if (selectionMode === "area") return; // handled by mousedown/up
+    const { xNorm, yNorm } = toSlideCoords(e);
+    setDraftPin({ x: xNorm, y: yNorm });
     setDraftComment("");
   };
 
+  const selectedPh = selectedPlaceholderIdx !== null
+    ? layout.placeholders.find((p) => p.idx === selectedPlaceholderIdx)
+    : null;
+
   const submitDraft = async () => {
-    if (!draft) return;
     const comment = draftComment.trim();
     if (!comment) {
       showToast("Kommentar darf nicht leer sein", "error");
       return;
     }
-    const relX = draft.x;
-    const relY = draft.y;
+
+    const isArea = !!draftArea && !drawingArea;
+    const position = isArea
+      ? {
+          x: (draftArea!.x1 + draftArea!.x2) / 2,
+          y: (draftArea!.y1 + draftArea!.y2) / 2,
+        }
+      : draftPin ?? { x: 0.5, y: 0.5 };
+
+    const relX = position.x;
+    const relY = position.y;
     const xPercent = relX * 100;
     const yPercent = relY * 100;
     const nearest = findNearestPlaceholder(layout, xPercent, yPercent);
+
+    let overlapping: Placeholder[] | undefined;
+    let area: AreaRect | undefined;
+    if (isArea) {
+      area = {
+        x1: draftArea!.x1,
+        y1: draftArea!.y1,
+        x2: draftArea!.x2,
+        y2: draftArea!.y2,
+      };
+      overlapping = findOverlappingPlaceholders(layout, {
+        x1: area.x1 * 100,
+        y1: area.y1 * 100,
+        x2: area.x2 * 100,
+        y2: area.y2 * 100,
+      });
+    }
+
     const prompt = buildCopilotPrompt({
       masterName: activeMasterName,
       layoutName: layout.name,
@@ -128,35 +258,47 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       relY,
       nearest,
       comment,
+      area,
+      overlapping,
+      selectedPlaceholder: selectedPh
+        ? { idx: selectedPh.idx, type: selectedPh.type }
+        : null,
     });
 
     try {
       await navigator.clipboard.writeText(prompt);
       showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
-    } catch (err) {
-      console.warn("Clipboard write failed:", err);
+    } catch {
       showToast("⚠️ Clipboard nicht verfügbar", "error");
     }
 
-    const newId = Math.random().toString(36).slice(2, 10);
     addAnnotation({
       slideIndex: activeSlideIndex,
-      position: { x: relX, y: relY },
+      position,
+      area,
+      targetPlaceholderIdx: selectedPh?.idx ?? nearest?.idx,
+      targetPlaceholderType: selectedPh?.type ?? nearest?.type,
       comment,
     });
+
+    const newId = Math.random().toString(36).slice(2, 10);
     setJustAddedId(newId);
     window.setTimeout(() => setJustAddedId(null), 1200);
-    setDraft(null);
+    setDraftPin(null);
+    setDraftArea(null);
     setDraftComment("");
   };
 
   const cancelDraft = () => {
-    setDraft(null);
+    setDraftPin(null);
+    setDraftArea(null);
     setDraftComment("");
+    setDrawingArea(false);
   };
 
   if (!visible) return null;
 
+  // Popover renderer (reused for pin / area)
   const renderPopover = (
     pinX: number,
     pinY: number,
@@ -173,7 +315,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
             ? "translate(calc(-100% - 16px), -50%)"
             : "translate(16px, -50%)",
           zIndex: 20,
-          width: 260,
+          width: 280,
           background: "#141414",
           border: "1px solid #2a2a2a",
           borderRadius: 8,
@@ -182,84 +324,250 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
           color: "#e8e8e8",
         }}
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>
     );
   };
 
+  const commentForm = (
+    <>
+      <div
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: "#888",
+          marginBottom: 6,
+        }}
+      >
+        Kommentar für Copilot
+      </div>
+      {selectedPh && (
+        <div
+          style={{
+            fontSize: 10,
+            color: "#3b82f6",
+            marginBottom: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Crosshair size={10} />
+          Placeholder: {selectedPh.type}:{selectedPh.idx}
+        </div>
+      )}
+      <Textarea
+        autoFocus
+        rows={4}
+        value={draftComment}
+        onChange={(e) => setDraftComment(e.target.value)}
+        placeholder="z.B. Titel sollte größer sein und links ausgerichtet..."
+      />
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          justifyContent: "flex-end",
+          marginTop: 8,
+        }}
+      >
+        <Button variant="ghost" size="sm" onClick={cancelDraft}>
+          ✕ Abbrechen
+        </Button>
+        <Button size="sm" onClick={submitDraft}>
+          📋 An Copilot senden
+        </Button>
+      </div>
+    </>
+  );
+
+  // Area selection rect (while drawing or after drawn)
+  const areaRectStyle = (
+    a: DraftArea,
+  ): React.CSSProperties => {
+    const left = Math.min(a.x1, a.x2) * 100;
+    const top = Math.min(a.y1, a.y2) * 100;
+    const width = Math.abs(a.x2 - a.x1) * 100;
+    const height = Math.abs(a.y2 - a.y1) * 100;
+    return {
+      position: "absolute",
+      left: `${left}%`,
+      top: `${top}%`,
+      width: `${width}%`,
+      height: `${height}%`,
+      border: "2px dashed #3b82f6",
+      background: "rgba(59,130,246,0.08)",
+      borderRadius: 3,
+      pointerEvents: "none",
+      zIndex: 14,
+    };
+  };
+
   return (
     <div
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       onClick={handleLayerClick}
       style={{
         position: "absolute",
         inset: 0,
         width: SLIDE_W,
         height: SLIDE_H,
-        cursor: "crosshair",
+        cursor: selectionMode === "area" ? "crosshair" : "crosshair",
         zIndex: 10,
       }}
     >
-      {slidePins.map((a) => (
-        <Tooltip key={a.id} content={a.comment} side="top">
-          <div
+      {/* Mode switcher (top right corner) */}
+      <div
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 6,
+          zIndex: 22,
+          display: "flex",
+          gap: 2,
+          background: "rgba(20,20,20,0.85)",
+          border: "1px solid #2a2a2a",
+          borderRadius: 6,
+          padding: 2,
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <Tooltip content="Pin-Modus" side="bottom">
+          <button
+            type="button"
+            onClick={() => setSelectionMode("pin")}
             style={{
-              position: "absolute",
-              left: `calc(${a.position.x * 100}% - 6px)`,
-              top: `calc(${a.position.y * 100}% - 6px)`,
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: "var(--app-pin)",
-              border: "2px solid #fff",
+              width: 26,
+              height: 26,
+              border: "none",
+              borderRadius: 4,
+              background:
+                selectionMode === "pin"
+                  ? "rgba(59,130,246,0.25)"
+                  : "transparent",
+              color:
+                selectionMode === "pin" ? "#3b82f6" : "#888",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               cursor: "pointer",
-              animation:
-                justAddedId === a.id
-                  ? "pin-pulse 1.2s ease-out"
-                  : undefined,
-              zIndex: 15,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
             }}
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeAnnotation(a.id);
-              }}
+            <Crosshair size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Bereich markieren" side="bottom">
+          <button
+            type="button"
+            onClick={() => setSelectionMode("area")}
+            style={{
+              width: 26,
+              height: 26,
+              border: "none",
+              borderRadius: 4,
+              background:
+                selectionMode === "area"
+                  ? "rgba(59,130,246,0.25)"
+                  : "transparent",
+              color:
+                selectionMode === "area" ? "#3b82f6" : "#888",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <MousePointerSquareDashed size={14} />
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* Committed pins */}
+      {slidePins.map((a) => (
+        <React.Fragment key={a.id}>
+          {/* If annotation has an area, show it */}
+          {a.area && <div style={areaRectStyle(a.area)} />}
+          <Tooltip content={a.comment} side="top">
+            <div
               style={{
                 position: "absolute",
-                top: -10,
-                right: -10,
-                width: 14,
-                height: 14,
+                left: `calc(${a.position.x * 100}% - 6px)`,
+                top: `calc(${a.position.y * 100}% - 6px)`,
+                width: 12,
+                height: 12,
                 borderRadius: "50%",
-                border: "none",
-                background: "#1c1c1c",
-                color: "#e8e8e8",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                background: "var(--app-pin)",
+                border: "2px solid #fff",
                 cursor: "pointer",
-                padding: 0,
+                animation:
+                  justAddedId === a.id
+                    ? "pin-pulse 1.2s ease-out"
+                    : undefined,
+                zIndex: 15,
               }}
-              aria-label="Pin löschen"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
             >
-              <X size={10} />
-            </button>
-          </div>
-        </Tooltip>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeAnnotation(a.id);
+                }}
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: -10,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: "#1c1c1c",
+                  color: "#e8e8e8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+                aria-label="Pin löschen"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          </Tooltip>
+        </React.Fragment>
       ))}
 
-      {draft && (
+      {/* Draft: area rectangle being drawn */}
+      {draftArea && drawingArea && <div style={areaRectStyle(draftArea)} />}
+
+      {/* Draft: completed area → show comment popover */}
+      {draftArea && !drawingArea && (
+        <>
+          <div style={areaRectStyle(draftArea)} />
+          {renderPopover(
+            (draftArea.x1 + draftArea.x2) / 2,
+            (draftArea.y1 + draftArea.y2) / 2,
+            commentForm,
+          )}
+        </>
+      )}
+
+      {/* Draft: pin */}
+      {draftPin && (
         <>
           <div
             style={{
               position: "absolute",
-              left: `calc(${draft.x * 100}% - 6px)`,
-              top: `calc(${draft.y * 100}% - 6px)`,
+              left: `calc(${draftPin.x * 100}% - 6px)`,
+              top: `calc(${draftPin.y * 100}% - 6px)`,
               width: 12,
               height: 12,
               borderRadius: "50%",
@@ -269,45 +577,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
               zIndex: 15,
             }}
           />
-          {renderPopover(
-            draft.x,
-            draft.y,
-            <>
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "#888",
-                  marginBottom: 6,
-                }}
-              >
-                Kommentar für Copilot
-              </div>
-              <Textarea
-                autoFocus
-                rows={4}
-                value={draftComment}
-                onChange={(e) => setDraftComment(e.target.value)}
-                placeholder="z.B. Titel sollte größer sein und links ausgerichtet..."
-              />
-              <div
-                style={{
-                  display: "flex",
-                  gap: 6,
-                  justifyContent: "flex-end",
-                  marginTop: 8,
-                }}
-              >
-                <Button variant="ghost" size="sm" onClick={cancelDraft}>
-                  ✕ Abbrechen
-                </Button>
-                <Button size="sm" onClick={submitDraft}>
-                  📋 An Copilot senden
-                </Button>
-              </div>
-            </>,
-          )}
+          {renderPopover(draftPin.x, draftPin.y, commentForm)}
         </>
       )}
     </div>

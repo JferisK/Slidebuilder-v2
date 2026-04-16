@@ -5,15 +5,22 @@ import type {
   SlideTheme,
 } from "@/parser/pptxParser";
 
-interface DynamicSlideProps {
+export interface DynamicSlideProps {
   layout: SlideLayout;
   theme: SlideTheme;
   content: Record<string, string>;
   isExporting?: boolean;
+  /** Currently selected placeholder idx (shown with accent border) */
+  selectedPlaceholderIdx?: number | null;
+  /** Show dashed outlines around all placeholders */
+  showPlaceholderOutlines?: boolean;
+  /** Called when a placeholder box is clicked */
+  onPlaceholderClick?: (placeholder: Placeholder) => void;
 }
 
 const FALLBACK_TEXT: Record<string, string> = {
   title: "Titel eingeben",
+  ctrTitle: "Titel eingeben",
   subTitle: "Untertitel eingeben",
   body: "• Punkt 1\n• Punkt 2\n• Punkt 3",
 };
@@ -131,6 +138,10 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   layout,
   theme,
   content,
+  isExporting = false,
+  selectedPlaceholderIdx = null,
+  showPlaceholderOutlines = true,
+  onPlaceholderClick,
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
   return (
@@ -144,25 +155,74 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
         ...themeStyle,
       }}
     >
-      {layout.placeholders.map((placeholder) => (
-        <div
-          key={`${placeholder.idx}-${placeholder.type}`}
-          style={{
-            position: "absolute",
-            left: `${placeholder.position.x}%`,
-            top: `${placeholder.position.y}%`,
-            width: `${placeholder.position.w}%`,
-            height: `${placeholder.position.h}%`,
-            padding: "4px",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "flex-start",
-            overflow: "hidden",
-          }}
-        >
-          {renderPlaceholderContent(placeholder, content)}
-        </div>
-      ))}
+      {layout.placeholders.map((placeholder) => {
+        const isSelected = selectedPlaceholderIdx === placeholder.idx;
+        const outlineStyle: React.CSSProperties =
+          !isExporting && showPlaceholderOutlines
+            ? {
+                border: isSelected
+                  ? "2px solid #3b82f6"
+                  : "1px dashed rgba(150,150,150,0.35)",
+                borderRadius: 2,
+                cursor: onPlaceholderClick ? "pointer" : undefined,
+                transition: "border-color 0.15s, box-shadow 0.15s",
+                boxShadow: isSelected
+                  ? "0 0 0 2px rgba(59,130,246,0.25)"
+                  : undefined,
+              }
+            : {};
+
+        return (
+          <div
+            key={`${placeholder.idx}-${placeholder.type}`}
+            data-placeholder-idx={placeholder.idx}
+            data-placeholder-type={placeholder.type}
+            onClick={(e) => {
+              if (onPlaceholderClick) {
+                e.stopPropagation();
+                onPlaceholderClick(placeholder);
+              }
+            }}
+            style={{
+              position: "absolute",
+              left: `${placeholder.position.x}%`,
+              top: `${placeholder.position.y}%`,
+              width: `${placeholder.position.w}%`,
+              height: `${placeholder.position.h}%`,
+              padding: "4px",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "flex-start",
+              overflow: "hidden",
+              ...outlineStyle,
+            }}
+          >
+            {renderPlaceholderContent(placeholder, content)}
+            {/* Small label showing type + idx in outline mode */}
+            {!isExporting && showPlaceholderOutlines && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  fontSize: 8,
+                  fontFamily: "monospace",
+                  padding: "1px 4px",
+                  background: isSelected
+                    ? "rgba(59,130,246,0.7)"
+                    : "rgba(0,0,0,0.45)",
+                  color: "#fff",
+                  borderRadius: "0 2px 0 3px",
+                  lineHeight: 1.4,
+                  pointerEvents: "none",
+                }}
+              >
+                {placeholder.type}:{placeholder.idx}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };

@@ -1,12 +1,68 @@
 import * as React from "react";
+import { parsePptx } from "./parser/pptxParser";
 import { UploadScreen } from "./components/UploadScreen";
 import { SlideCanvas } from "./components/SlideCanvas";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Toast } from "./components/Toast";
-import { useSlideStore } from "./store/slideStore";
+import { OnboardingScreen } from "./components/OnboardingScreen";
+import { useSlideStore, type StoredTemplate } from "./store/slideStore";
 
 const App: React.FC = () => {
   const presentation = useSlideStore((s) => s.presentation);
+  const onboardingDone = useSlideStore((s) => s.onboardingDone);
+  const loadTemplates = useSlideStore((s) => s.loadTemplates);
+  const loadProjects = useSlideStore((s) => s.loadProjects);
+  const addTemplate = useSlideStore((s) => s.addTemplate);
+  const setParsedPresentation = useSlideStore(
+    (s) => s.setParsedPresentation,
+  );
+  const showToast = useSlideStore((s) => s.showToast);
+
+  // Load persisted templates + projects on mount
+  React.useEffect(() => {
+    void loadTemplates();
+    void loadProjects();
+  }, [loadTemplates, loadProjects]);
+
+  // Listen for additional upload events from SettingsPanel
+  React.useEffect(() => {
+    const handler = async (e: Event) => {
+      const file = (e as CustomEvent<File>).detail;
+      if (!file) return;
+      try {
+        const [parsed, arrayBuffer] = await Promise.all([
+          parsePptx(file),
+          file.arrayBuffer(),
+        ]);
+        const tpl: StoredTemplate = {
+          id: Math.random().toString(36).slice(2, 10),
+          name: file.name.replace(/\.pptx$/i, ""),
+          fileName: file.name,
+          uploadedAt: Date.now(),
+          pptxData: arrayBuffer,
+          parsed,
+        };
+        await addTemplate(tpl);
+        setParsedPresentation(parsed);
+        useSlideStore.getState().setActiveTemplate(tpl.id);
+        showToast(`✅ "${tpl.name}" hinzugefügt`);
+      } catch {
+        showToast("⚠️ Import fehlgeschlagen", "error");
+      }
+    };
+    window.addEventListener("slideforge:upload", handler);
+    return () => window.removeEventListener("slideforge:upload", handler);
+  }, [addTemplate, setParsedPresentation, showToast]);
+
+  // Onboarding overlay
+  if (!onboardingDone) {
+    return (
+      <>
+        <OnboardingScreen />
+        <Toast />
+      </>
+    );
+  }
 
   if (!presentation) {
     return (
