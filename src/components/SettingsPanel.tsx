@@ -6,6 +6,7 @@ import {
   Code2,
   Eye,
   EyeOff,
+  ChevronDown,
 } from "lucide-react";
 import {
   useActiveLayout,
@@ -16,7 +17,6 @@ import {
 import { Select } from "./ui/select";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
-import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
 import { codeSlides, getCodeSlide } from "@/slides/registry";
@@ -41,6 +41,32 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
     {children}
   </div>
 );
+
+const CollapsibleSection: React.FC<{
+  label: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ label, defaultOpen = true, children }) => {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="mb-2 flex w-full items-center justify-between text-[10px] font-medium uppercase tracking-wider text-[var(--app-muted)]"
+      >
+        {label}
+        <ChevronDown
+          size={12}
+          style={{
+            transform: open ? "rotate(180deg)" : undefined,
+            transition: "transform 0.2s",
+          }}
+        />
+      </button>
+      {open && children}
+    </div>
+  );
+};
 
 type PlaceholderListProps = {
   placeholders: Placeholder[];
@@ -236,7 +262,7 @@ export const SettingsPanel: React.FC = () => {
       className="flex h-full flex-none flex-col border-l border-[var(--app-border)] bg-[var(--app-panel)]"
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
-        {/* Template switcher */}
+        {/* Vorlage */}
         {templates.length > 0 && (
           <div>
             <SectionLabel>Vorlage (PPTX)</SectionLabel>
@@ -281,6 +307,7 @@ export const SettingsPanel: React.FC = () => {
 
         <Separator />
 
+        {/* Folienmaster */}
         <div>
           <SectionLabel>Folienmaster</SectionLabel>
           <Select
@@ -290,27 +317,33 @@ export const SettingsPanel: React.FC = () => {
           />
         </div>
 
-        {/* Theme colors */}
+        <Separator />
+
+        {/* Layout */}
+        {activeLayout && (
+          <div>
+            <SectionLabel>Layout</SectionLabel>
+            <Select
+              value={activeLayout.id}
+              options={layoutOptions}
+              onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+            />
+          </div>
+        )}
+
+        <Separator />
+
+        {/* Projektordner */}
         <div>
-          <SectionLabel>Farben (aus Master)</SectionLabel>
-          <div className="flex flex-col gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
-            <Swatch color={theme["--slide-bg"]} label="Hintergrund" />
-            <Swatch color={theme["--slide-primary"]} label="Primär" />
-            <Swatch color={theme["--slide-secondary"]} label="Sekundär" />
-            <Swatch color={theme["--slide-accent"]} label="Akzent" />
-            <Swatch color={theme["--slide-text"]} label="Text" />
-            <Swatch color={theme["--slide-text-muted"]} label="Text (gedämpft)" />
-          </div>
-          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            Heading: {theme["--slide-font-heading"]?.split(",")[0]}
-            {" · "}Body: {theme["--slide-font-body"]?.split(",")[0]}
-          </div>
+          <SectionLabel>Projektordner</SectionLabel>
+          <ProjectManager />
         </div>
 
         <Separator />
 
+        {/* Folienauswahl */}
         <div>
-          <SectionLabel>React-Folie (Code)</SectionLabel>
+          <SectionLabel>Folienauswahl</SectionLabel>
           <Select
             value={activeSlide.codeSlideId ?? "__none__"}
             options={codeSlideOptions}
@@ -343,65 +376,57 @@ export const SettingsPanel: React.FC = () => {
 
         <Separator />
 
+        {/* Bereiche (einklappbar) */}
         {activeLayout && (
-          <>
-            <div>
-              <SectionLabel>Layout</SectionLabel>
-              <Select
-                value={activeLayout.id}
-                options={layoutOptions}
-                onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
-              />
-            </div>
-
-            <Separator />
-
-            <div>
-              <SectionLabel>
-                Bereiche ({activeLayout.placeholders.length})
-              </SectionLabel>
-              <PlaceholderList
-                placeholders={activeLayout.placeholders}
-                codeSlide={activeCodeSlide}
-                codeSlotMapping={codeSlotMapping}
-                hiddenIdxs={activeSlide.hiddenPlaceholderIdxs}
-                onAssignSlot={(slotKey, idx) =>
-                  setCodeSlotMapping(activeSlideIndex, slotKey, idx)
-                }
-                onToggleHidden={(idx) =>
-                  togglePlaceholderHidden(activeSlideIndex, idx)
-                }
-              />
-              {activeCodeSlide ? (
-                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-                  Ordne pro Zeile einen React-Slot (Titel/Inhalt) einem
-                  Bereich zu oder blende ihn aus.
-                </div>
-              ) : (
-                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-                  Blende Bereiche aus (z. B. Seitenzahl, Fußzeile).
-                </div>
-              )}
-            </div>
-          </>
+          <CollapsibleSection
+            label={`Bereiche (${activeLayout.placeholders.length})`}
+          >
+            <PlaceholderList
+              placeholders={activeLayout.placeholders}
+              codeSlide={activeCodeSlide}
+              codeSlotMapping={codeSlotMapping}
+              hiddenIdxs={activeSlide.hiddenPlaceholderIdxs}
+              onAssignSlot={(slotKey, idx) =>
+                setCodeSlotMapping(activeSlideIndex, slotKey, idx)
+              }
+              onToggleHidden={(idx) =>
+                togglePlaceholderHidden(activeSlideIndex, idx)
+              }
+            />
+            {activeCodeSlide ? (
+              <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                Ordne pro Zeile einen React-Slot (Titel/Inhalt) einem
+                Bereich zu oder blende ihn aus.
+              </div>
+            ) : (
+              <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                Blende Bereiche aus (z. B. Seitenzahl, Fußzeile).
+              </div>
+            )}
+          </CollapsibleSection>
         )}
 
         <Separator />
 
-        <div>
-          <SectionLabel>Folien</SectionLabel>
-          <SlideList />
-        </div>
+        {/* Farben (einklappbar) */}
+        <CollapsibleSection label="Farben (aus Master)" defaultOpen={false}>
+          <div className="flex flex-col gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+            <Swatch color={theme["--slide-bg"]} label="Hintergrund" />
+            <Swatch color={theme["--slide-primary"]} label="Primär" />
+            <Swatch color={theme["--slide-secondary"]} label="Sekundär" />
+            <Swatch color={theme["--slide-accent"]} label="Akzent" />
+            <Swatch color={theme["--slide-text"]} label="Text" />
+            <Swatch color={theme["--slide-text-muted"]} label="Text (gedämpft)" />
+          </div>
+          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+            Heading: {theme["--slide-font-heading"]?.split(",")[0]}
+            {" · "}Body: {theme["--slide-font-body"]?.split(",")[0]}
+          </div>
+        </CollapsibleSection>
 
         <Separator />
 
-        <div>
-          <SectionLabel>Projekt & Ordner</SectionLabel>
-          <ProjectManager />
-        </div>
-
-        <Separator />
-
+        {/* Export */}
         <div>
           <SectionLabel>Export</SectionLabel>
           <ExportButton />
