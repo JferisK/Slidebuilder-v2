@@ -63,7 +63,11 @@ export interface Annotation {
   comment: string;
 }
 
-export type SelectionMode = "pin" | "area";
+export type SelectionMode = "pin" | "area" | "select";
+
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 4;
+export const ZOOM_STEP = 0.1;
 
 export type ToastKind = "success" | "info" | "error";
 
@@ -94,13 +98,23 @@ export interface SlideForgeStore {
   setActiveMaster: (id: string) => void;
   setActiveSlide: (index: number) => void;
 
-  // ── Placeholder selection ────────────────────────────────
-  selectedPlaceholderIdx: number | null;
-  setSelectedPlaceholder: (idx: number | null) => void;
+  // ── Element selection (multi, by global element id) ──────
+  selectedElementIds: string[];
+  setSelectedElements: (ids: string[]) => void;
+  toggleElementSelected: (id: string) => void;
+  addElementsToSelection: (ids: string[]) => void;
+  clearElementSelection: () => void;
 
-  // ── Selection mode (pin vs area) ─────────────────────────
+  // ── Selection mode (pin | area | select) ─────────────────
   selectionMode: SelectionMode;
   setSelectionMode: (mode: SelectionMode) => void;
+
+  // ── Canvas zoom ──────────────────────────────────────────
+  canvasZoom: number;
+  setCanvasZoom: (z: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
 
   // ── Slides ───────────────────────────────────────────────
   slides: Slide[];
@@ -218,8 +232,9 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   presentation: null,
   activeMasterId: null,
   activeSlideIndex: 0,
-  selectedPlaceholderIdx: null,
+  selectedElementIds: [],
   selectionMode: "pin",
+  canvasZoom: 1,
   slides: [],
   annotations: [],
   annotationsVisible: true,
@@ -244,7 +259,8 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       slides: initialSlide ? [initialSlide] : [],
       annotations: [],
       annotationsVisible: true,
-      selectedPlaceholderIdx: null,
+      selectedElementIds: [],
+      canvasZoom: 1,
     });
   },
 
@@ -260,12 +276,48 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
         layoutId: newMaster.layouts[0]?.id ?? slide.layoutId,
       };
     });
-    set({ activeMasterId: id, slides: nextSlides, selectedPlaceholderIdx: null });
+    set({
+      activeMasterId: id,
+      slides: nextSlides,
+      selectedElementIds: [],
+      canvasZoom: 1,
+    });
   },
 
-  setActiveSlide: (index) => set({ activeSlideIndex: index, selectedPlaceholderIdx: null }),
-  setSelectedPlaceholder: (idx) => set({ selectedPlaceholderIdx: idx }),
+  setActiveSlide: (index) =>
+    set({ activeSlideIndex: index, selectedElementIds: [], canvasZoom: 1 }),
+
+  setSelectedElements: (ids) => set({ selectedElementIds: ids }),
+  toggleElementSelected: (id) => {
+    const current = get().selectedElementIds;
+    const exists = current.includes(id);
+    set({
+      selectedElementIds: exists
+        ? current.filter((x) => x !== id)
+        : [...current, id],
+    });
+  },
+  addElementsToSelection: (ids) => {
+    const current = get().selectedElementIds;
+    const next = [...current];
+    for (const id of ids) if (!next.includes(id)) next.push(id);
+    set({ selectedElementIds: next });
+  },
+  clearElementSelection: () => set({ selectedElementIds: [] }),
+
   setSelectionMode: (mode) => set({ selectionMode: mode }),
+
+  setCanvasZoom: (z) =>
+    set({ canvasZoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) }),
+  zoomIn: () => {
+    const z = get().canvasZoom;
+    set({ canvasZoom: Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)) });
+  },
+  zoomOut: () => {
+    const z = get().canvasZoom;
+    set({ canvasZoom: Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)) });
+  },
+  resetZoom: () => set({ canvasZoom: 1 }),
 
   addSlide: (codeSlideId) => {
     const { presentation, activeMasterId, slides } = get();
@@ -348,7 +400,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
           }
         : s,
     );
-    set({ slides: next, selectedPlaceholderIdx: null });
+    set({ slides: next, selectedElementIds: [] });
   },
 
   setCodeSlideForSlide: (slideIndex, codeSlideId) => {
@@ -369,7 +421,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
           }
         : s,
     );
-    set({ slides: next, selectedPlaceholderIdx: null });
+    set({ slides: next, selectedElementIds: [] });
   },
 
   setCodeSlotMapping: (slideIndex, slotKey, placeholderIdx) => {

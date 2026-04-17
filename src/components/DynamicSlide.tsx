@@ -1,21 +1,32 @@
 import * as React from "react";
+import { Check } from "lucide-react";
 import type {
   Placeholder,
   SlideLayout,
   SlideTheme,
 } from "@/parser/pptxParser";
+import {
+  circledNumber,
+  formatElementLabel,
+  makeElementId,
+} from "@/lib/elementId";
 
 export interface DynamicSlideProps {
   layout: SlideLayout;
   theme: SlideTheme;
   content: Record<string, string>;
   isExporting?: boolean;
-  /** Currently selected placeholder idx (shown with accent border) */
-  selectedPlaceholderIdx?: number | null;
+  /** Unique id of the slide that owns these placeholders. */
+  slideId?: string;
+  /** 1-based ordinal of the slide (for human-readable labels). */
+  slideOrdinal?: number;
+  /**
+   * Element ids currently selected (ordered by selection time). Each entry has
+   * the form `${slideId}::${placeholderIdx}`.
+   */
+  selectedElementIds?: string[];
   /** Show dashed outlines around all placeholders */
   showPlaceholderOutlines?: boolean;
-  /** Called when a placeholder box is clicked */
-  onPlaceholderClick?: (placeholder: Placeholder) => void;
   /**
    * Optional React components keyed by placeholder idx. When a placeholder's
    * idx matches a key here, the component is rendered inside the placeholder
@@ -147,13 +158,15 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   theme,
   content,
   isExporting = false,
-  selectedPlaceholderIdx = null,
+  slideId,
+  slideOrdinal = 1,
+  selectedElementIds,
   showPlaceholderOutlines = true,
-  onPlaceholderClick,
   codeSlots,
   hiddenPlaceholderIdxs,
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
+  const selectedList = selectedElementIds ?? [];
   return (
     <div
       style={{
@@ -167,22 +180,36 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
     >
       {layout.placeholders.map((placeholder) => {
         if (hiddenPlaceholderIdxs?.has(placeholder.idx)) return null;
-        const isSelected = selectedPlaceholderIdx === placeholder.idx;
+        const elementId = slideId
+          ? makeElementId(slideId, placeholder.idx)
+          : undefined;
+        const selectionOrder = elementId
+          ? selectedList.indexOf(elementId)
+          : -1;
+        const isSelected = selectionOrder >= 0;
         const Slot = codeSlots?.[String(placeholder.idx)];
         const hasSlot = Boolean(Slot);
+        const label = formatElementLabel(
+          slideOrdinal,
+          placeholder.type,
+          placeholder.idx,
+        );
         const outlineStyle: React.CSSProperties =
           !isExporting && showPlaceholderOutlines
             ? {
                 border: isSelected
-                  ? "2px solid #3b82f6"
+                  ? "2.5px solid #3b82f6"
                   : hasSlot
                     ? "1px dashed rgba(59,130,246,0.55)"
                     : "1px dashed rgba(150,150,150,0.35)",
                 borderRadius: 2,
-                cursor: onPlaceholderClick ? "pointer" : undefined,
-                transition: "border-color 0.15s, box-shadow 0.15s",
+                transition:
+                  "border-color 0.15s, box-shadow 0.15s, background 0.15s",
                 boxShadow: isSelected
-                  ? "0 0 0 2px rgba(59,130,246,0.25)"
+                  ? "0 0 0 3px rgba(59,130,246,0.35)"
+                  : undefined,
+                background: isSelected
+                  ? "rgba(59,130,246,0.08)"
                   : undefined,
               }
             : {};
@@ -192,13 +219,9 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
             key={`${placeholder.idx}-${placeholder.type}`}
             data-placeholder-idx={placeholder.idx}
             data-placeholder-type={placeholder.type}
+            data-element-id={elementId}
+            data-selection-order={isSelected ? selectionOrder + 1 : undefined}
             data-code-slot={hasSlot ? "true" : undefined}
-            onClick={(e) => {
-              if (onPlaceholderClick) {
-                e.stopPropagation();
-                onPlaceholderClick(placeholder);
-              }
-            }}
             style={{
               position: "absolute",
               left: `${placeholder.position.x}%`,
@@ -220,7 +243,6 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
             ) : (
               renderPlaceholderContent(placeholder, content)
             )}
-            {/* Small label showing type + idx in outline mode */}
             {!isExporting && showPlaceholderOutlines && (
               <span
                 style={{
@@ -231,7 +253,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                   fontFamily: "monospace",
                   padding: "1px 4px",
                   background: isSelected
-                    ? "rgba(59,130,246,0.7)"
+                    ? "#3b82f6"
                     : hasSlot
                       ? "rgba(59,130,246,0.55)"
                       : "rgba(0,0,0,0.45)",
@@ -239,10 +261,22 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                   borderRadius: "0 2px 0 3px",
                   lineHeight: 1.4,
                   pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontWeight: isSelected ? 700 : 400,
                 }}
               >
-                {placeholder.type}:{placeholder.idx}
-                {hasSlot && " · code"}
+                {isSelected && (
+                  <>
+                    <span style={{ fontSize: 9 }}>
+                      {circledNumber(selectionOrder + 1)}
+                    </span>
+                    <Check size={8} strokeWidth={3} />
+                  </>
+                )}
+                <span>{label}</span>
+                {hasSlot && !isSelected && <span>· code</span>}
               </span>
             )}
           </div>

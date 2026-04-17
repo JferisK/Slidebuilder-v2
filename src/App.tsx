@@ -2,6 +2,7 @@ import * as React from "react";
 import { parsePptx } from "./parser/pptxParser";
 import { UploadScreen } from "./components/UploadScreen";
 import { SlideCanvas } from "./components/SlideCanvas";
+import { ZoomToolbar } from "./components/ZoomToolbar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Toast } from "./components/Toast";
 import { OnboardingScreen } from "./components/OnboardingScreen";
@@ -91,9 +92,19 @@ const App: React.FC = () => {
       </header>
       <div className="flex flex-1 overflow-hidden">
         <main
-          className="flex flex-1 items-center justify-center overflow-auto scrollbar-thin"
-          style={{ background: "var(--app-canvas)", padding: 32 }}
+          className="flex flex-1 flex-col items-center overflow-auto scrollbar-thin"
+          style={{ background: "var(--app-canvas)", padding: 32, gap: 12 }}
         >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 1280,
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <ZoomToolbar />
+          </div>
           <div style={{ width: "100%", maxWidth: 1280 }}>
             <SlideCanvas />
           </div>
