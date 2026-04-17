@@ -52,6 +52,22 @@ export const SlideCanvas: React.FC = () => {
   }
 
   const codeSlide = getCodeSlide(activeSlide.codeSlideId);
+  const mapping = activeSlide.codeSlotMapping;
+  const codeSlotsByIdx = React.useMemo(() => {
+    if (!codeSlide || !mapping) return undefined;
+    const result: Record<string, React.FC> = {};
+    for (const slot of codeSlide.slots) {
+      const idx = mapping[slot.key];
+      if (idx !== undefined) result[String(idx)] = slot.Component;
+    }
+    return result;
+  }, [codeSlide, mapping]);
+
+  const hiddenList = activeSlide.hiddenPlaceholderIdxs;
+  const hiddenIdxSet = React.useMemo(() => {
+    if (!hiddenList || hiddenList.length === 0) return undefined;
+    return new Set(hiddenList);
+  }, [hiddenList]);
 
   return (
     <div
@@ -87,7 +103,8 @@ export const SlideCanvas: React.FC = () => {
               selectedPlaceholderIdx === ph.idx ? null : ph.idx,
             );
           }}
-          codeSlots={codeSlide?.slots}
+          codeSlots={codeSlotsByIdx}
+          hiddenPlaceholderIdxs={hiddenIdxSet}
         />
         <AnnotationLayer
           scale={scale}

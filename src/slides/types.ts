@@ -1,24 +1,36 @@
 import type * as React from "react";
 
 /**
- * A code slide provides React content for individual PowerPoint placeholders
- * by their index. The host PPTX layout defines position, size and theming;
- * the code slide defines what goes *into* each placeholder box.
- *
- * Example: a layout with `title:0` and `body:1` gets filled by a code slide
- * that exports slots for `"0"` (title) and `"1"` (body). Any placeholder
- * without a matching slot falls back to the default placeholder rendering.
- *
- * Relationship: 1 React file === 1 slide (provides slots for that slide).
+ * A semantic slot in a code slide — e.g. "title" or "content". The user
+ * maps each slot to an actual placeholder idx of the host PPTX layout, so
+ * the same React slide works with layouts that use unusual idx values
+ * (e.g. body:18 instead of body:1).
+ */
+export interface CodeSlideSlot {
+  /** Machine key, e.g. "title", "content". Stable across layouts. */
+  key: string;
+  /** Human-readable label for the UI, e.g. "Titel", "Inhalt". */
+  label: string;
+  /** Optional help text shown under the mapping row. */
+  description?: string;
+  /** The React component that renders this slot's content. */
+  Component: React.FC;
+}
+
+/**
+ * A React-authored slide. Slots are semantic ("title", "content"); the
+ * mapping to concrete placeholder idx values lives on the `Slide` record
+ * and can be edited per slide.
  */
 export interface CodeSlide {
   id: string;
   name: string;
   description: string;
+  slots: CodeSlideSlot[];
   /**
-   * Map from placeholder idx (as string, matching `Placeholder.idx`) to a
-   * React component that renders the slot's content. The component is
-   * mounted inside the placeholder's positioned box and fills it.
+   * Default placeholder types each slot prefers, used to auto-suggest
+   * mappings when the slide is assigned or the layout changes.
+   * Example: `{ title: ["title", "ctrTitle"], content: ["body"] }`.
    */
-  slots: Record<string, React.FC>;
+  preferredTypes?: Record<string, string[]>;
 }

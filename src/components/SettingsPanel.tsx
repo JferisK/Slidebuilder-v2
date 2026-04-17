@@ -1,5 +1,12 @@
 import * as React from "react";
-import { Trash2, Upload, HelpCircle, Code2 } from "lucide-react";
+import {
+  Trash2,
+  Upload,
+  HelpCircle,
+  Code2,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import {
   useActiveLayout,
   useActiveMaster,
@@ -9,11 +16,23 @@ import {
 import { Select } from "./ui/select";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
-import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
 import { codeSlides, getCodeSlide } from "@/slides/registry";
+import type { Placeholder } from "@/parser/pptxParser";
+
+const PLACEHOLDER_TYPE_LABELS: Record<string, string> = {
+  title: "Titel",
+  ctrTitle: "Titel (zentriert)",
+  subTitle: "Untertitel",
+  body: "Inhalt",
+  dt: "Datum",
+  ftr: "Fußzeile",
+  sldNum: "Seitenzahl",
+};
+
+const SLOT_NONE = "__none__";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -22,6 +41,103 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
     {children}
   </div>
 );
+
+type PlaceholderListProps = {
+  placeholders: Placeholder[];
+  codeSlide: ReturnType<typeof getCodeSlide>;
+  codeSlotMapping: Record<string, number>;
+  hiddenIdxs: number[] | undefined;
+  onAssignSlot: (slotKey: string, placeholderIdx: number | null) => void;
+  onToggleHidden: (placeholderIdx: number) => void;
+};
+
+const PlaceholderList: React.FC<PlaceholderListProps> = ({
+  placeholders,
+  codeSlide,
+  codeSlotMapping,
+  hiddenIdxs,
+  onAssignSlot,
+  onToggleHidden,
+}) => {
+  const seen = new Set<number>();
+  const unique = placeholders.filter((p) => {
+    if (seen.has(p.idx)) return false;
+    seen.add(p.idx);
+    return true;
+  });
+
+  if (unique.length === 0) {
+    return (
+      <div className="text-[11px] text-[var(--app-muted)]">
+        Dieses Layout hat keine Placeholder.
+      </div>
+    );
+  }
+
+  const slotOptions = codeSlide
+    ? [
+        { value: SLOT_NONE, label: "— nicht zugeordnet" },
+        ...codeSlide.slots.map((s) => ({
+          value: s.key,
+          label: s.label,
+        })),
+      ]
+    : null;
+
+  const hidden = new Set(hiddenIdxs ?? []);
+
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+      {unique.map((p) => {
+        const typeLabel =
+          PLACEHOLDER_TYPE_LABELS[p.type] ?? p.type;
+        const isHidden = hidden.has(p.idx);
+        const assignedSlotKey = codeSlide
+          ? codeSlide.slots.find((s) => codeSlotMapping[s.key] === p.idx)?.key
+          : undefined;
+        return (
+          <div
+            key={`${p.idx}-${p.type}`}
+            className="flex items-center gap-1.5"
+            style={{ opacity: isHidden ? 0.5 : 1 }}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] text-[var(--app-text)]">
+                {typeLabel}
+              </div>
+              <div className="font-mono text-[9px] text-[var(--app-muted)]">
+                {p.type}:{p.idx}
+              </div>
+            </div>
+            {slotOptions && (
+              <div style={{ width: 120 }}>
+                <Select
+                  value={assignedSlotKey ?? SLOT_NONE}
+                  options={slotOptions}
+                  onValueChange={(v) => {
+                    if (v === SLOT_NONE) {
+                      if (assignedSlotKey) onAssignSlot(assignedSlotKey, null);
+                    } else {
+                      onAssignSlot(v, p.idx);
+                    }
+                  }}
+                />
+              </div>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onToggleHidden(p.idx)}
+              title={isHidden ? "Einblenden" : "Ausblenden"}
+            >
+              {isHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+            </Button>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /** Small color swatch */
 const Swatch: React.FC<{ color: string; label: string }> = ({
@@ -64,6 +180,10 @@ export const SettingsPanel: React.FC = () => {
   const showToast = useSlideStore((s) => s.showToast);
   const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
   const setCodeSlideForSlide = useSlideStore((s) => s.setCodeSlideForSlide);
+  const setCodeSlotMapping = useSlideStore((s) => s.setCodeSlotMapping);
+  const togglePlaceholderHidden = useSlideStore(
+    (s) => s.togglePlaceholderHidden,
+  );
   const addSlide = useSlideStore((s) => s.addSlide);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -88,9 +208,7 @@ export const SettingsPanel: React.FC = () => {
   }
 
   const activeCodeSlide = getCodeSlide(activeSlide.codeSlideId);
-  const codeSlotIdxs = activeCodeSlide
-    ? new Set(Object.keys(activeCodeSlide.slots))
-    : undefined;
+  const codeSlotMapping = activeSlide.codeSlotMapping ?? {};
   const codeSlideOptions = [
     { value: "__none__", label: "— Keine (nur Platzhalter-Text)" },
     ...codeSlides.map((cs) => ({ value: cs.id, label: cs.name })),
@@ -234,32 +352,36 @@ export const SettingsPanel: React.FC = () => {
                 options={layoutOptions}
                 onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
               />
-              <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-                {activeLayout.placeholders.length} Placeholder
-                {activeLayout.placeholders.length > 0 && (
-                  <>
-                    :{" "}
-                    {activeLayout.placeholders
-                      .map((p) => {
-                        const covered = codeSlotIdxs?.has(String(p.idx));
-                        return `${p.type}:${p.idx}${covered ? "⚛" : ""}`;
-                      })
-                      .join(", ")}
-                  </>
-                )}
-              </div>
             </div>
 
             <Separator />
 
             <div>
-              <SectionLabel>Inhalte (Text)</SectionLabel>
-              <ContentEditor
-                layout={activeLayout}
-                slideIndex={activeSlideIndex}
-                content={activeSlide.content}
-                codeSlotIdxs={codeSlotIdxs}
+              <SectionLabel>
+                Bereiche ({activeLayout.placeholders.length})
+              </SectionLabel>
+              <PlaceholderList
+                placeholders={activeLayout.placeholders}
+                codeSlide={activeCodeSlide}
+                codeSlotMapping={codeSlotMapping}
+                hiddenIdxs={activeSlide.hiddenPlaceholderIdxs}
+                onAssignSlot={(slotKey, idx) =>
+                  setCodeSlotMapping(activeSlideIndex, slotKey, idx)
+                }
+                onToggleHidden={(idx) =>
+                  togglePlaceholderHidden(activeSlideIndex, idx)
+                }
               />
+              {activeCodeSlide ? (
+                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                  Ordne pro Zeile einen React-Slot (Titel/Inhalt) einem
+                  Bereich zu oder blende ihn aus.
+                </div>
+              ) : (
+                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                  Blende Bereiche aus (z. B. Seitenzahl, Fußzeile).
+                </div>
+              )}
             </div>
           </>
         )}

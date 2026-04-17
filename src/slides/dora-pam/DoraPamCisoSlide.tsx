@@ -280,9 +280,25 @@ const DoraPamCisoSlide: CodeSlide = {
   name: "DORA & PAM — CISO-Implikationen",
   description:
     "Was die EU-Verordnung 2022/2554 für privilegierten Zugriff vorschreibt.",
-  slots: {
-    "0": TitleSlot,
-    "1": BodySlot,
+  slots: [
+    {
+      key: "title",
+      label: "Titel",
+      description:
+        "Icon + Kurztitel + Meta-Badges (kompakt, passt in Titel-Placeholder).",
+      Component: TitleSlot,
+    },
+    {
+      key: "content",
+      label: "Inhalt",
+      description:
+        "Dreispaltiges Kartenlayout + Meldefristen-Zeile (füllt Body-Placeholder).",
+      Component: BodySlot,
+    },
+  ],
+  preferredTypes: {
+    title: ["title", "ctrTitle"],
+    content: ["body"],
   },
 };
 

@@ -16,6 +16,8 @@ import {
   type SavedSlide,
   type ProjectFolder,
 } from "@/lib/templateStorage";
+import { getCodeSlide } from "@/slides/registry";
+import { autoMapCodeSlots } from "@/slides/mapping";
 
 // ---------- Types -----------------------------------------------------------
 
@@ -25,10 +27,23 @@ export interface Slide {
   layoutId: string;
   content: Record<string, string>;
   /**
-   * If set, the slide is rendered by a React component from `src/slides/registry.ts`
-   * instead of the placeholder-based layout. The master is still used for theming.
+   * If set, React slots from the named code slide are rendered inside the
+   * matching placeholder boxes of this slide's layout. The master is still
+   * used for theming.
    */
   codeSlideId?: string;
+  /**
+   * Mapping from slot key (e.g. "title", "content") to placeholder idx of
+   * the current layout. Editable per slide so unusual layouts (e.g. body
+   * at idx 18) can host the same code slide.
+   */
+  codeSlotMapping?: Record<string, number>;
+  /**
+   * Placeholder idx values that the user has hidden for this slide
+   * (e.g. page number, footer). Hidden placeholders are skipped in the
+   * canvas completely.
+   */
+  hiddenPlaceholderIdxs?: number[];
 }
 
 export interface AreaRect {
@@ -97,6 +112,12 @@ export interface SlideForgeStore {
     slideIndex: number,
     codeSlideId: string | null,
   ) => void;
+  setCodeSlotMapping: (
+    slideIndex: number,
+    slotKey: string,
+    placeholderIdx: number | null,
+  ) => void;
+  togglePlaceholderHidden: (slideIndex: number, placeholderIdx: number) => void;
   updateSlideContent: (
     slideIndex: number,
     idx: string,
@@ -251,12 +272,17 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     const master = findMaster(presentation, activeMasterId);
     const layout = master?.layouts[0];
     if (!master || !layout) return;
+    const codeSlide = getCodeSlide(codeSlideId);
+    const codeSlotMapping = codeSlide
+      ? autoMapCodeSlots(codeSlide, layout)
+      : undefined;
     const newSlide: Slide = {
       id: uid(),
       masterId: master.id,
       layoutId: layout.id,
       content: {},
       codeSlideId,
+      codeSlotMapping,
     };
     set({
       slides: [...slides, newSlide],
@@ -304,24 +330,83 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       m.layouts.some((l) => l.id === layoutId),
     );
     if (!owningMaster) return;
+    const newLayout = owningMaster.layouts.find((l) => l.id === layoutId);
+    const codeSlide = getCodeSlide(slide.codeSlideId);
+    // Re-run auto-mapping when the layout changes: existing mappings are
+    // preserved where the idx still exists, others get re-assigned.
+    const nextMapping =
+      codeSlide && newLayout
+        ? autoMapCodeSlots(codeSlide, newLayout, slide.codeSlotMapping)
+        : undefined;
     const next = slides.map((s, i) =>
       i === slideIndex
-        ? { ...s, masterId: owningMaster.id, layoutId }
+        ? {
+            ...s,
+            masterId: owningMaster.id,
+            layoutId,
+            codeSlotMapping: nextMapping,
+          }
         : s,
     );
     set({ slides: next, selectedPlaceholderIdx: null });
   },
 
   setCodeSlideForSlide: (slideIndex, codeSlideId) => {
-    const { slides } = get();
+    const { slides, presentation } = get();
     const slide = slides[slideIndex];
     if (!slide) return;
+    const master = findMaster(presentation, slide.masterId);
+    const layout = master?.layouts.find((l) => l.id === slide.layoutId);
+    const codeSlide = getCodeSlide(codeSlideId);
+    const mapping =
+      codeSlide && layout ? autoMapCodeSlots(codeSlide, layout) : undefined;
     const next = slides.map((s, i) =>
       i === slideIndex
-        ? { ...s, codeSlideId: codeSlideId ?? undefined }
+        ? {
+            ...s,
+            codeSlideId: codeSlideId ?? undefined,
+            codeSlotMapping: mapping,
+          }
         : s,
     );
     set({ slides: next, selectedPlaceholderIdx: null });
+  },
+
+  setCodeSlotMapping: (slideIndex, slotKey, placeholderIdx) => {
+    const { slides } = get();
+    const slide = slides[slideIndex];
+    if (!slide) return;
+    const current = slide.codeSlotMapping ?? {};
+    const next = { ...current };
+    if (placeholderIdx === null) {
+      delete next[slotKey];
+    } else {
+      // If another slot already points to this idx, clear it (no collisions).
+      for (const key of Object.keys(next)) {
+        if (next[key] === placeholderIdx) delete next[key];
+      }
+      next[slotKey] = placeholderIdx;
+    }
+    const updatedSlides = slides.map((s, i) =>
+      i === slideIndex ? { ...s, codeSlotMapping: next } : s,
+    );
+    set({ slides: updatedSlides });
+  },
+
+  togglePlaceholderHidden: (slideIndex, placeholderIdx) => {
+    const { slides } = get();
+    const slide = slides[slideIndex];
+    if (!slide) return;
+    const current = slide.hiddenPlaceholderIdxs ?? [];
+    const isHidden = current.includes(placeholderIdx);
+    const nextList = isHidden
+      ? current.filter((i) => i !== placeholderIdx)
+      : [...current, placeholderIdx];
+    const nextField = nextList.length > 0 ? nextList : undefined;
+    const updated = slides.map((s, i) =>
+      i === slideIndex ? { ...s, hiddenPlaceholderIdxs: nextField } : s,
+    );
+    set({ slides: updated });
   },
 
   updateSlideContent: (slideIndex, idx, value) => {

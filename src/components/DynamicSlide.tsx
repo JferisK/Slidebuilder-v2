@@ -22,6 +22,8 @@ export interface DynamicSlideProps {
    * box instead of the default text rendering. Comes from a code slide.
    */
   codeSlots?: Record<string, React.FC>;
+  /** Placeholder idx values that should be fully skipped for this slide. */
+  hiddenPlaceholderIdxs?: Set<number>;
 }
 
 const FALLBACK_TEXT: Record<string, string> = {
@@ -149,6 +151,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   showPlaceholderOutlines = true,
   onPlaceholderClick,
   codeSlots,
+  hiddenPlaceholderIdxs,
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
   return (
@@ -163,6 +166,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
       }}
     >
       {layout.placeholders.map((placeholder) => {
+        if (hiddenPlaceholderIdxs?.has(placeholder.idx)) return null;
         const isSelected = selectedPlaceholderIdx === placeholder.idx;
         const Slot = codeSlots?.[String(placeholder.idx)];
         const hasSlot = Boolean(Slot);
