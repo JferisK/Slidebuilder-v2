@@ -1,8 +1,9 @@
 import * as React from "react";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2, Code2 } from "lucide-react";
 import { useSlideStore } from "@/store/slideStore";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import { getCodeSlide } from "@/slides/registry";
 
 export const SlideList: React.FC = () => {
   const slides = useSlideStore((s) => s.slides);
@@ -27,7 +28,7 @@ export const SlideList: React.FC = () => {
       <Button
         variant="secondary"
         size="sm"
-        onClick={addSlide}
+        onClick={() => addSlide()}
         className="w-full"
       >
         <Plus size={12} /> Neue Folie
@@ -49,16 +50,24 @@ export const SlideList: React.FC = () => {
               >
                 <div className="flex min-w-0 flex-col">
                   <span
-                    className={
+                    className={`flex items-center gap-1 ${
                       isActive
                         ? "font-medium text-[var(--app-accent)]"
                         : "text-[var(--app-text)]"
-                    }
+                    }`}
                   >
+                    {slide.codeSlideId && (
+                      <Code2
+                        size={10}
+                        className="flex-none text-[var(--app-accent)]"
+                      />
+                    )}
                     Folie {i + 1}
                   </span>
                   <span className="truncate text-[10px] text-[var(--app-muted)]">
-                    {layoutNameFor(slide.masterId, slide.layoutId)}
+                    {slide.codeSlideId
+                      ? (getCodeSlide(slide.codeSlideId)?.name ?? "Code-Folie")
+                      : layoutNameFor(slide.masterId, slide.layoutId)}
                   </span>
                 </div>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">

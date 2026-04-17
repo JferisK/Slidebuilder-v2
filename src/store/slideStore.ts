@@ -24,6 +24,11 @@ export interface Slide {
   masterId: string;
   layoutId: string;
   content: Record<string, string>;
+  /**
+   * If set, the slide is rendered by a React component from `src/slides/registry.ts`
+   * instead of the placeholder-based layout. The master is still used for theming.
+   */
+  codeSlideId?: string;
 }
 
 export interface AreaRect {
@@ -84,10 +89,14 @@ export interface SlideForgeStore {
 
   // ── Slides ───────────────────────────────────────────────
   slides: Slide[];
-  addSlide: () => void;
+  addSlide: (codeSlideId?: string) => void;
   duplicateSlide: (index: number) => void;
   removeSlide: (index: number) => void;
   setLayoutForSlide: (slideIndex: number, layoutId: string) => void;
+  setCodeSlideForSlide: (
+    slideIndex: number,
+    codeSlideId: string | null,
+  ) => void;
   updateSlideContent: (
     slideIndex: number,
     idx: string,
@@ -237,7 +246,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   setSelectedPlaceholder: (idx) => set({ selectedPlaceholderIdx: idx }),
   setSelectionMode: (mode) => set({ selectionMode: mode }),
 
-  addSlide: () => {
+  addSlide: (codeSlideId) => {
     const { presentation, activeMasterId, slides } = get();
     const master = findMaster(presentation, activeMasterId);
     const layout = master?.layouts[0];
@@ -247,6 +256,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       masterId: master.id,
       layoutId: layout.id,
       content: {},
+      codeSlideId,
     };
     set({
       slides: [...slides, newSlide],
@@ -297,6 +307,18 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     const next = slides.map((s, i) =>
       i === slideIndex
         ? { ...s, masterId: owningMaster.id, layoutId }
+        : s,
+    );
+    set({ slides: next, selectedPlaceholderIdx: null });
+  },
+
+  setCodeSlideForSlide: (slideIndex, codeSlideId) => {
+    const { slides } = get();
+    const slide = slides[slideIndex];
+    if (!slide) return;
+    const next = slides.map((s, i) =>
+      i === slideIndex
+        ? { ...s, codeSlideId: codeSlideId ?? undefined }
         : s,
     );
     set({ slides: next, selectedPlaceholderIdx: null });

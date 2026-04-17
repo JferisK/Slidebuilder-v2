@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Trash2, Upload, HelpCircle } from "lucide-react";
+import { Trash2, Upload, HelpCircle, Code2, FileCode } from "lucide-react";
 import {
   useActiveLayout,
   useActiveMaster,
@@ -13,6 +13,7 @@ import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
+import { codeSlides } from "@/slides/registry";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -62,6 +63,8 @@ export const SettingsPanel: React.FC = () => {
   const deleteTemplate = useSlideStore((s) => s.deleteTemplate);
   const showToast = useSlideStore((s) => s.showToast);
   const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
+  const setCodeSlideForSlide = useSlideStore((s) => s.setCodeSlideForSlide);
+  const addSlide = useSlideStore((s) => s.addSlide);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -80,9 +83,15 @@ export const SettingsPanel: React.FC = () => {
     e.target.value = "";
   };
 
-  if (!presentation || !activeMaster || !activeSlide || !activeLayout) {
+  if (!presentation || !activeMaster || !activeSlide) {
     return null;
   }
+
+  const isCodeSlide = Boolean(activeSlide.codeSlideId);
+  const codeSlideOptions = [
+    { value: "__none__", label: "— Keine (Platzhalter-Layout)" },
+    ...codeSlides.map((cs) => ({ value: cs.id, label: cs.name })),
+  ];
 
   const masterOptions = presentation.masters.map((m) => ({
     value: m.id,
@@ -180,36 +189,85 @@ export const SettingsPanel: React.FC = () => {
         <Separator />
 
         <div>
-          <SectionLabel>Layout</SectionLabel>
+          <SectionLabel>React-Folie (Code)</SectionLabel>
           <Select
-            value={activeLayout.id}
-            options={layoutOptions}
-            onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+            value={activeSlide.codeSlideId ?? "__none__"}
+            options={codeSlideOptions}
+            onValueChange={(v) =>
+              setCodeSlideForSlide(
+                activeSlideIndex,
+                v === "__none__" ? null : v,
+              )
+            }
           />
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {activeLayout.placeholders.length} Placeholder
-            {activeLayout.placeholders.length !== 1 ? "" : ""}
-            {activeLayout.placeholders.length > 0 && (
-              <>
-                :{" "}
-                {activeLayout.placeholders
-                  .map((p) => `${p.type}:${p.idx}`)
-                  .join(", ")}
-              </>
-            )}
+            Eine React-Datei = eine Folie. Master bestimmt Farben &amp; Fonts.
           </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const first = codeSlides[0];
+              if (first) addSlide(first.id);
+            }}
+            className="mt-2 w-full"
+          >
+            <Code2 size={12} /> Neue Code-Folie hinzufügen
+          </Button>
         </div>
 
         <Separator />
 
-        <div>
-          <SectionLabel>Inhalte</SectionLabel>
-          <ContentEditor
-            layout={activeLayout}
-            slideIndex={activeSlideIndex}
-            content={activeSlide.content}
-          />
-        </div>
+        {isCodeSlide ? (
+          <div
+            className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-3 text-[11px] leading-relaxed text-[var(--app-muted)]"
+          >
+            <div className="mb-1 flex items-center gap-1.5 font-medium text-[var(--app-text)]">
+              <FileCode size={12} /> Inhalt &amp; Layout im Code
+            </div>
+            Aufbau und Texte dieser Folie liegen in{" "}
+            <code className="font-mono text-[10px] text-[var(--app-accent)]">
+              src/slides/{activeSlide.codeSlideId}/…tsx
+            </code>
+            . Das Seiten-Panel ist nur für Master/Theme-Wechsel &amp; Quick
+            Tweaks. Inhalt wird im Quellcode gepflegt.
+          </div>
+        ) : (
+          activeLayout && (
+            <>
+              <div>
+                <SectionLabel>Layout</SectionLabel>
+                <Select
+                  value={activeLayout.id}
+                  options={layoutOptions}
+                  onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+                />
+                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                  {activeLayout.placeholders.length} Placeholder
+                  {activeLayout.placeholders.length > 0 && (
+                    <>
+                      :{" "}
+                      {activeLayout.placeholders
+                        .map((p) => `${p.type}:${p.idx}`)
+                        .join(", ")}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <SectionLabel>Inhalte</SectionLabel>
+                <ContentEditor
+                  layout={activeLayout}
+                  slideIndex={activeSlideIndex}
+                  content={activeSlide.content}
+                />
+              </div>
+            </>
+          )
+        )}
 
         <Separator />
 

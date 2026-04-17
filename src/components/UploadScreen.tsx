@@ -1,9 +1,10 @@
 import * as React from "react";
-import { FileUp, Loader2, Palette } from "lucide-react";
+import { FileUp, Loader2, Palette, Code2 } from "lucide-react";
 import { parsePptx } from "@/parser/pptxParser";
 import { useSlideStore, type StoredTemplate } from "@/store/slideStore";
 import { createDemoPresentation } from "@/lib/demoTemplate";
 import { Button } from "./ui/button";
+import { codeSlides } from "@/slides/registry";
 
 export const UploadScreen: React.FC = () => {
   const setParsedPresentation = useSlideStore(
@@ -51,7 +52,7 @@ export const UploadScreen: React.FC = () => {
     }
   };
 
-  const handleLoadDemo = () => {
+  const loadDemoTemplate = () => {
     const parsed = createDemoPresentation();
     const tpl: StoredTemplate = {
       id: "demo-builtin",
@@ -71,6 +72,19 @@ export const UploadScreen: React.FC = () => {
         : [...s.templates, tpl],
       activeTemplateId: tpl.id,
     }));
+  };
+
+  const handleLoadDemo = () => {
+    loadDemoTemplate();
+  };
+
+  const handleLoadCodeSlideDemo = () => {
+    loadDemoTemplate();
+    const first = codeSlides[0];
+    if (first) {
+      // Replace the auto-created first slide with the code slide.
+      useSlideStore.getState().setCodeSlideForSlide(0, first.id);
+    }
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -103,6 +117,22 @@ export const UploadScreen: React.FC = () => {
           Lade eine PowerPoint-Vorlage (<code>.pptx</code>), um alle
           Folienmaster und Layouts automatisch zu erkennen.
         </p>
+
+        {/* Code-Slide Quick-Start */}
+        <div className="mb-3">
+          <Button
+            variant="default"
+            size="md"
+            onClick={handleLoadCodeSlideDemo}
+            className="w-full"
+          >
+            <Code2 size={14} />
+            React-Folie ansehen: DORA &amp; PAM
+          </Button>
+          <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
+            Eine React-Datei = eine Folie. Master lässt sich frei wechseln.
+          </p>
+        </div>
 
         {/* Demo button */}
         <div className="mb-4">
