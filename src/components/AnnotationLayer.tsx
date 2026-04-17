@@ -13,6 +13,8 @@ interface AnnotationLayerProps {
   scale: number;
   layout: SlideLayout;
   activeMasterName: string;
+  slideContent: Record<string, string>;
+  themeColors: Record<string, string>;
 }
 
 interface DraftPin {
@@ -67,9 +69,20 @@ function findOverlappingPlaceholders(
   });
 }
 
+function describePlaceholder(p: Placeholder, content: Record<string, string>): string {
+  const currentValue = content[String(p.idx)] || "(leer)";
+  const pos = p.position;
+  return [
+    `  - type="${p.type}", idx=${p.idx}`,
+    `    Position: left=${pos.x.toFixed(1)}%, top=${pos.y.toFixed(1)}%, Breite=${pos.w.toFixed(1)}%, Höhe=${pos.h.toFixed(1)}%`,
+    `    Aktueller Inhalt: "${currentValue.length > 80 ? currentValue.slice(0, 80) + "…" : currentValue}"`,
+  ].join("\n");
+}
+
 function buildCopilotPrompt({
   masterName,
   layoutName,
+  layoutPlaceholders,
   relX,
   relY,
   nearest,
@@ -77,9 +90,12 @@ function buildCopilotPrompt({
   area,
   overlapping,
   selectedPlaceholder,
+  content,
+  themeColors,
 }: {
   masterName: string;
   layoutName: string;
+  layoutPlaceholders: Placeholder[];
   relX: number;
   relY: number;
   nearest: Placeholder | null;
@@ -87,19 +103,50 @@ function buildCopilotPrompt({
   area?: AreaRect;
   overlapping?: Placeholder[];
   selectedPlaceholder?: { idx: number; type: string } | null;
+  content: Record<string, string>;
+  themeColors: Record<string, string>;
 }): string {
   const lines: string[] = [
-    "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt.",
+    "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
     "",
-    "Kontext:",
-    `- Aktiver Folienmaster: "${masterName}"`,
-    `- Aktives Layout: "${layoutName}"`,
+    "## Slide-Kontext",
+    `Folienmaster: "${masterName}"`,
+    `Layout: "${layoutName}"`,
+    `Slide-Größe: 1280×720px (16:9)`,
+    "",
+    "## Theme-Farben",
+    `  Hintergrund:  ${themeColors["--slide-bg"] ?? "?"}`,
+    `  Primär:       ${themeColors["--slide-primary"] ?? "?"}`,
+    `  Sekundär:     ${themeColors["--slide-secondary"] ?? "?"}`,
+    `  Akzent:       ${themeColors["--slide-accent"] ?? "?"}`,
+    `  Text:         ${themeColors["--slide-text"] ?? "?"}`,
+    `  Text gedämpft: ${themeColors["--slide-text-muted"] ?? "?"}`,
+    `  Font Heading: ${themeColors["--slide-font-heading"] ?? "?"}`,
+    `  Font Body:    ${themeColors["--slide-font-body"] ?? "?"}`,
+    "",
+    "## Alle Placeholders in diesem Layout",
   ];
 
+  for (const p of layoutPlaceholders) {
+    lines.push(describePlaceholder(p, content));
+  }
+
+  lines.push("");
+
+  // Specific target info
   if (selectedPlaceholder) {
-    lines.push(
-      `- Ausgewählter Placeholder: "${selectedPlaceholder.type}" (idx: ${selectedPlaceholder.idx})`,
+    const sp = layoutPlaceholders.find(
+      (p) => p.idx === selectedPlaceholder.idx,
     );
+    lines.push("## Ziel-Element (vom User ausgewählt)");
+    if (sp) {
+      lines.push(describePlaceholder(sp, content));
+    } else {
+      lines.push(
+        `  type="${selectedPlaceholder.type}", idx=${selectedPlaceholder.idx}`,
+      );
+    }
+    lines.push("");
   }
 
   if (area) {
@@ -107,27 +154,33 @@ function buildCopilotPrompt({
     const y1 = Math.round(Math.min(area.y1, area.y2) * 100);
     const x2 = Math.round(Math.max(area.x1, area.x2) * 100);
     const y2 = Math.round(Math.max(area.y1, area.y2) * 100);
-    lines.push(`- Markierter Bereich: (${x1}%,${y1}%) bis (${x2}%,${y2}%)`);
+    lines.push("## Markierter Bereich");
+    lines.push(`  Von (${x1}%, ${y1}%) bis (${x2}%, ${y2}%)`);
     if (overlapping && overlapping.length > 0) {
-      const desc = overlapping
-        .map((p) => `"${p.type}" (idx: ${p.idx})`)
-        .join(", ");
-      lines.push(`- Placeholders im Bereich: ${desc}`);
+      lines.push("  Enthaltene Placeholders:");
+      for (const p of overlapping) {
+        lines.push(describePlaceholder(p, content));
+      }
     }
-  } else {
+    lines.push("");
+  } else if (!selectedPlaceholder) {
+    lines.push("## Angeklickte Position");
     lines.push(
-      `- Angeklickte Position: x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`,
+      `  x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`,
     );
     if (nearest) {
-      lines.push(
-        `- Nächstliegender Placeholder: "${nearest.type}" (idx: ${nearest.idx})`,
-      );
+      lines.push("  Nächstliegender Placeholder:");
+      lines.push(describePlaceholder(nearest, content));
     }
+    lines.push("");
   }
 
-  lines.push("", `Feedback des Nutzers:`, `"${comment}"`, "");
+  lines.push("## Feedback");
+  lines.push(`"${comment}"`);
+  lines.push("");
   lines.push(
-    "Bitte analysiere die Komponente und schlage eine konkrete Änderung vor.",
+    "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
+    "Referenziere Placeholders per type und idx.",
     "Zeige den geänderten Code-Abschnitt.",
   );
   return lines.join("\n").trim();
@@ -137,6 +190,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   scale,
   layout,
   activeMasterName,
+  slideContent,
+  themeColors,
 }) => {
   const visible = useSlideStore((s) => s.annotationsVisible);
   const annotations = useSlideStore((s) => s.annotations);
@@ -254,6 +309,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     const prompt = buildCopilotPrompt({
       masterName: activeMasterName,
       layoutName: layout.name,
+      layoutPlaceholders: layout.placeholders,
       relX,
       relY,
       nearest,
@@ -263,6 +319,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       selectedPlaceholder: selectedPh
         ? { idx: selectedPh.idx, type: selectedPh.type }
         : null,
+      content: slideContent,
+      themeColors,
     });
 
     try {

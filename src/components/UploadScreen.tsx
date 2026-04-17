@@ -1,7 +1,8 @@
 import * as React from "react";
-import { FileUp, Loader2 } from "lucide-react";
+import { FileUp, Loader2, Palette } from "lucide-react";
 import { parsePptx } from "@/parser/pptxParser";
 import { useSlideStore, type StoredTemplate } from "@/store/slideStore";
+import { createDemoPresentation } from "@/lib/demoTemplate";
 import { Button } from "./ui/button";
 
 export const UploadScreen: React.FC = () => {
@@ -41,15 +42,35 @@ export const UploadScreen: React.FC = () => {
 
       await addTemplate(tpl);
       setParsedPresentation(parsed);
-      // Make this the active template
-      const store = useSlideStore.getState();
-      store.setActiveTemplate(tpl.id);
+      useSlideStore.getState().setActiveTemplate(tpl.id);
     } catch (err) {
       console.error(err);
       setError("Datei konnte nicht gelesen werden. Bitte erneut versuchen.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoadDemo = () => {
+    const parsed = createDemoPresentation();
+    const tpl: StoredTemplate = {
+      id: "demo-builtin",
+      name: "Demo-Vorlage",
+      fileName: "demo-template.pptx",
+      uploadedAt: Date.now(),
+      pptxData: new ArrayBuffer(0),
+      parsed,
+    };
+    // Don't persist demo to IndexedDB — just use it in-memory
+    setParsedPresentation(parsed);
+    useSlideStore.getState().setActiveTemplate(tpl.id);
+    // Add to in-memory templates list so the switcher works
+    useSlideStore.setState((s) => ({
+      templates: s.templates.some((t) => t.id === tpl.id)
+        ? s.templates
+        : [...s.templates, tpl],
+      activeTemplateId: tpl.id,
+    }));
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -59,7 +80,6 @@ export const UploadScreen: React.FC = () => {
     if (file) void handleFile(file);
   };
 
-  // If stored templates exist, allow quick-select
   const hasSaved = templates.length > 0;
 
   return (
@@ -83,6 +103,30 @@ export const UploadScreen: React.FC = () => {
           Lade eine PowerPoint-Vorlage (<code>.pptx</code>), um alle
           Folienmaster und Layouts automatisch zu erkennen.
         </p>
+
+        {/* Demo button */}
+        <div className="mb-4">
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={handleLoadDemo}
+            className="w-full"
+          >
+            <Palette size={14} />
+            Demo-Vorlage laden (3 Master, 11 Layouts)
+          </Button>
+          <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
+            Corporate Design, Startup Modern, Executive Dark — sofort ausprobieren
+          </p>
+        </div>
+
+        <div className="mb-4 flex items-center gap-2">
+          <div className="h-px flex-1 bg-[var(--app-border)]" />
+          <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+            oder eigene Vorlage
+          </span>
+          <div className="h-px flex-1 bg-[var(--app-border)]" />
+        </div>
 
         {/* Stored templates quick access */}
         {hasSaved && (
@@ -167,25 +211,6 @@ export const UploadScreen: React.FC = () => {
               if (file) void handleFile(file);
             }}
           />
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-          <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
-            oder
-          </span>
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-        </div>
-
-        <div className="mt-4 flex justify-center">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => inputRef.current?.click()}
-            disabled={loading}
-          >
-            Datei auswählen
-          </Button>
         </div>
 
         {error && (

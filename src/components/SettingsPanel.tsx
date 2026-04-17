@@ -12,7 +12,6 @@ import { Button } from "./ui/button";
 import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
-import { CodeExportButton } from "./CodeExportButton";
 import { ProjectManager } from "./ProjectManager";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
@@ -20,6 +19,31 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
 }) => (
   <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[var(--app-muted)]">
     {children}
+  </div>
+);
+
+/** Small color swatch */
+const Swatch: React.FC<{ color: string; label: string }> = ({
+  color,
+  label,
+}) => (
+  <div className="flex items-center gap-1.5" title={color}>
+    <span
+      style={{
+        width: 14,
+        height: 14,
+        borderRadius: 3,
+        background: color,
+        border: "1px solid rgba(255,255,255,0.1)",
+        flexShrink: 0,
+      }}
+    />
+    <span className="truncate text-[10px] text-[var(--app-muted)]">
+      {label}
+    </span>
+    <span className="ml-auto font-mono text-[9px] text-[var(--app-muted)]">
+      {color}
+    </span>
   </div>
 );
 
@@ -32,7 +56,6 @@ export const SettingsPanel: React.FC = () => {
   const setActiveMaster = useSlideStore((s) => s.setActiveMaster);
   const setLayoutForSlide = useSlideStore((s) => s.setLayoutForSlide);
 
-  // Template management
   const templates = useSlideStore((s) => s.templates);
   const activeTemplateId = useSlideStore((s) => s.activeTemplateId);
   const setActiveTemplate = useSlideStore((s) => s.setActiveTemplate);
@@ -40,7 +63,6 @@ export const SettingsPanel: React.FC = () => {
   const showToast = useSlideStore((s) => s.showToast);
   const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
 
-  // Hidden file input for uploading additional templates
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const handleUploadMore = () => fileRef.current?.click();
@@ -52,7 +74,6 @@ export const SettingsPanel: React.FC = () => {
       showToast("Bitte eine .pptx-Datei auswählen", "error");
       return;
     }
-    // Trigger the global upload handler via custom event (handled in App)
     window.dispatchEvent(
       new CustomEvent("slideforge:upload", { detail: file }),
     );
@@ -74,8 +95,10 @@ export const SettingsPanel: React.FC = () => {
 
   const templateOptions = templates.map((t) => ({
     value: t.id,
-    label: `${t.name} (${t.fileName})`,
+    label: `${t.name}`,
   }));
+
+  const theme = activeMaster.theme.cssVars;
 
   return (
     <aside
@@ -95,7 +118,12 @@ export const SettingsPanel: React.FC = () => {
                   onValueChange={(v) => setActiveTemplate(v)}
                 />
               </div>
-              <Button size="icon" variant="ghost" onClick={handleUploadMore} title="Weitere Vorlage hochladen">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleUploadMore}
+                title="Weitere Vorlage hochladen"
+              >
                 <Upload size={13} />
               </Button>
               {activeTemplateId && templates.length > 1 && (
@@ -132,6 +160,23 @@ export const SettingsPanel: React.FC = () => {
           />
         </div>
 
+        {/* Theme colors */}
+        <div>
+          <SectionLabel>Farben (aus Master)</SectionLabel>
+          <div className="flex flex-col gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+            <Swatch color={theme["--slide-bg"]} label="Hintergrund" />
+            <Swatch color={theme["--slide-primary"]} label="Primär" />
+            <Swatch color={theme["--slide-secondary"]} label="Sekundär" />
+            <Swatch color={theme["--slide-accent"]} label="Akzent" />
+            <Swatch color={theme["--slide-text"]} label="Text" />
+            <Swatch color={theme["--slide-text-muted"]} label="Text (gedämpft)" />
+          </div>
+          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+            Heading: {theme["--slide-font-heading"]?.split(",")[0]}
+            {" · "}Body: {theme["--slide-font-body"]?.split(",")[0]}
+          </div>
+        </div>
+
         <Separator />
 
         <div>
@@ -141,6 +186,18 @@ export const SettingsPanel: React.FC = () => {
             options={layoutOptions}
             onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
           />
+          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+            {activeLayout.placeholders.length} Placeholder
+            {activeLayout.placeholders.length !== 1 ? "" : ""}
+            {activeLayout.placeholders.length > 0 && (
+              <>
+                :{" "}
+                {activeLayout.placeholders
+                  .map((p) => `${p.type}:${p.idx}`)
+                  .join(", ")}
+              </>
+            )}
+          </div>
         </div>
 
         <Separator />
@@ -172,10 +229,7 @@ export const SettingsPanel: React.FC = () => {
 
         <div>
           <SectionLabel>Export</SectionLabel>
-          <div className="flex flex-col gap-2">
-            <ExportButton />
-            <CodeExportButton />
-          </div>
+          <ExportButton />
         </div>
 
         <Separator />

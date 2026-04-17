@@ -88,6 +88,8 @@ export const SlideCanvas: React.FC = () => {
           scale={scale}
           layout={activeLayout}
           activeMasterName={activeMaster.name}
+          slideContent={activeSlide.content}
+          themeColors={activeMaster.theme.cssVars as unknown as Record<string, string>}
         />
       </div>
     </div>
