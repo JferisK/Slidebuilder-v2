@@ -43,7 +43,7 @@ export const SlideCanvas: React.FC = () => {
   const scale = width > 0 ? width / SLIDE_W : 1;
   const scaledHeight = width > 0 ? (width / SLIDE_W) * SLIDE_H : 0;
 
-  if (!activeSlide || !activeMaster) {
+  if (!activeSlide || !activeLayout || !activeMaster) {
     return (
       <div className="flex h-full w-full items-center justify-center text-[var(--app-muted)]">
         Keine Folie ausgewählt
@@ -52,18 +52,6 @@ export const SlideCanvas: React.FC = () => {
   }
 
   const codeSlide = getCodeSlide(activeSlide.codeSlideId);
-  const CodeSlideComponent = codeSlide?.Component;
-
-  // For placeholder-layout slides we still require an active layout.
-  if (!CodeSlideComponent && !activeLayout) {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-[var(--app-muted)]">
-        Keine Folie ausgewählt
-      </div>
-    );
-  }
-
-  const themeStyle = activeMaster.theme.cssVars as unknown as React.CSSProperties;
 
   return (
     <div
@@ -86,44 +74,30 @@ export const SlideCanvas: React.FC = () => {
           transformOrigin: "top left",
           boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
           position: "relative",
-          ...(CodeSlideComponent
-            ? {
-                overflow: "hidden",
-                background: "var(--slide-bg)",
-                ...themeStyle,
-              }
-            : {}),
         }}
       >
-        {CodeSlideComponent ? (
-          <CodeSlideComponent />
-        ) : (
-          activeLayout && (
-            <>
-              <DynamicSlide
-                layout={activeLayout}
-                theme={activeMaster.theme}
-                content={activeSlide.content}
-                showPlaceholderOutlines={true}
-                selectedPlaceholderIdx={selectedPlaceholderIdx}
-                onPlaceholderClick={(ph) => {
-                  setSelectedPlaceholder(
-                    selectedPlaceholderIdx === ph.idx ? null : ph.idx,
-                  );
-                }}
-              />
-              <AnnotationLayer
-                scale={scale}
-                layout={activeLayout}
-                activeMasterName={activeMaster.name}
-                slideContent={activeSlide.content}
-                themeColors={
-                  activeMaster.theme.cssVars as unknown as Record<string, string>
-                }
-              />
-            </>
-          )
-        )}
+        <DynamicSlide
+          layout={activeLayout}
+          theme={activeMaster.theme}
+          content={activeSlide.content}
+          showPlaceholderOutlines={true}
+          selectedPlaceholderIdx={selectedPlaceholderIdx}
+          onPlaceholderClick={(ph) => {
+            setSelectedPlaceholder(
+              selectedPlaceholderIdx === ph.idx ? null : ph.idx,
+            );
+          }}
+          codeSlots={codeSlide?.slots}
+        />
+        <AnnotationLayer
+          scale={scale}
+          layout={activeLayout}
+          activeMasterName={activeMaster.name}
+          slideContent={activeSlide.content}
+          themeColors={
+            activeMaster.theme.cssVars as unknown as Record<string, string>
+          }
+        />
       </div>
     </div>
   );

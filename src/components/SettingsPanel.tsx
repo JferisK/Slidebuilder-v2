@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Trash2, Upload, HelpCircle, Code2, FileCode } from "lucide-react";
+import { Trash2, Upload, HelpCircle, Code2 } from "lucide-react";
 import {
   useActiveLayout,
   useActiveMaster,
@@ -13,7 +13,7 @@ import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
-import { codeSlides } from "@/slides/registry";
+import { codeSlides, getCodeSlide } from "@/slides/registry";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -87,9 +87,12 @@ export const SettingsPanel: React.FC = () => {
     return null;
   }
 
-  const isCodeSlide = Boolean(activeSlide.codeSlideId);
+  const activeCodeSlide = getCodeSlide(activeSlide.codeSlideId);
+  const codeSlotIdxs = activeCodeSlide
+    ? new Set(Object.keys(activeCodeSlide.slots))
+    : undefined;
   const codeSlideOptions = [
-    { value: "__none__", label: "— Keine (Platzhalter-Layout)" },
+    { value: "__none__", label: "— Keine (nur Platzhalter-Text)" },
     ...codeSlides.map((cs) => ({ value: cs.id, label: cs.name })),
   ];
 
@@ -201,7 +204,11 @@ export const SettingsPanel: React.FC = () => {
             }
           />
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            Eine React-Datei = eine Folie. Master bestimmt Farben &amp; Fonts.
+            {activeCodeSlide
+              ? `Slots: ${Object.keys(activeCodeSlide.slots)
+                  .map((k) => `:${k}`)
+                  .join(", ")} — Layout + Master liefern Position & Theme.`
+              : "Eine React-Datei füllt Placeholder (z. B. title:0, body:1) im Layout."}
           </div>
           <Button
             size="sm"
@@ -212,61 +219,49 @@ export const SettingsPanel: React.FC = () => {
             }}
             className="mt-2 w-full"
           >
-            <Code2 size={12} /> Neue Code-Folie hinzufügen
+            <Code2 size={12} /> Neue Folie mit React-Inhalt
           </Button>
         </div>
 
         <Separator />
 
-        {isCodeSlide ? (
-          <div
-            className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-3 text-[11px] leading-relaxed text-[var(--app-muted)]"
-          >
-            <div className="mb-1 flex items-center gap-1.5 font-medium text-[var(--app-text)]">
-              <FileCode size={12} /> Inhalt &amp; Layout im Code
+        {activeLayout && (
+          <>
+            <div>
+              <SectionLabel>Layout</SectionLabel>
+              <Select
+                value={activeLayout.id}
+                options={layoutOptions}
+                onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+              />
+              <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+                {activeLayout.placeholders.length} Placeholder
+                {activeLayout.placeholders.length > 0 && (
+                  <>
+                    :{" "}
+                    {activeLayout.placeholders
+                      .map((p) => {
+                        const covered = codeSlotIdxs?.has(String(p.idx));
+                        return `${p.type}:${p.idx}${covered ? "⚛" : ""}`;
+                      })
+                      .join(", ")}
+                  </>
+                )}
+              </div>
             </div>
-            Aufbau und Texte dieser Folie liegen in{" "}
-            <code className="font-mono text-[10px] text-[var(--app-accent)]">
-              src/slides/{activeSlide.codeSlideId}/…tsx
-            </code>
-            . Das Seiten-Panel ist nur für Master/Theme-Wechsel &amp; Quick
-            Tweaks. Inhalt wird im Quellcode gepflegt.
-          </div>
-        ) : (
-          activeLayout && (
-            <>
-              <div>
-                <SectionLabel>Layout</SectionLabel>
-                <Select
-                  value={activeLayout.id}
-                  options={layoutOptions}
-                  onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
-                />
-                <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-                  {activeLayout.placeholders.length} Placeholder
-                  {activeLayout.placeholders.length > 0 && (
-                    <>
-                      :{" "}
-                      {activeLayout.placeholders
-                        .map((p) => `${p.type}:${p.idx}`)
-                        .join(", ")}
-                    </>
-                  )}
-                </div>
-              </div>
 
-              <Separator />
+            <Separator />
 
-              <div>
-                <SectionLabel>Inhalte</SectionLabel>
-                <ContentEditor
-                  layout={activeLayout}
-                  slideIndex={activeSlideIndex}
-                  content={activeSlide.content}
-                />
-              </div>
-            </>
-          )
+            <div>
+              <SectionLabel>Inhalte (Text)</SectionLabel>
+              <ContentEditor
+                layout={activeLayout}
+                slideIndex={activeSlideIndex}
+                content={activeSlide.content}
+                codeSlotIdxs={codeSlotIdxs}
+              />
+            </div>
+          </>
         )}
 
         <Separator />

@@ -1,10 +1,8 @@
 import * as React from "react";
-import { FileUp, Loader2, Palette, Code2 } from "lucide-react";
+import { FileUp, Loader2 } from "lucide-react";
 import { parsePptx } from "@/parser/pptxParser";
 import { useSlideStore, type StoredTemplate } from "@/store/slideStore";
-import { createDemoPresentation } from "@/lib/demoTemplate";
 import { Button } from "./ui/button";
-import { codeSlides } from "@/slides/registry";
 
 export const UploadScreen: React.FC = () => {
   const setParsedPresentation = useSlideStore(
@@ -52,41 +50,6 @@ export const UploadScreen: React.FC = () => {
     }
   };
 
-  const loadDemoTemplate = () => {
-    const parsed = createDemoPresentation();
-    const tpl: StoredTemplate = {
-      id: "demo-builtin",
-      name: "Demo-Vorlage",
-      fileName: "demo-template.pptx",
-      uploadedAt: Date.now(),
-      pptxData: new ArrayBuffer(0),
-      parsed,
-    };
-    // Don't persist demo to IndexedDB — just use it in-memory
-    setParsedPresentation(parsed);
-    useSlideStore.getState().setActiveTemplate(tpl.id);
-    // Add to in-memory templates list so the switcher works
-    useSlideStore.setState((s) => ({
-      templates: s.templates.some((t) => t.id === tpl.id)
-        ? s.templates
-        : [...s.templates, tpl],
-      activeTemplateId: tpl.id,
-    }));
-  };
-
-  const handleLoadDemo = () => {
-    loadDemoTemplate();
-  };
-
-  const handleLoadCodeSlideDemo = () => {
-    loadDemoTemplate();
-    const first = codeSlides[0];
-    if (first) {
-      // Replace the auto-created first slide with the code slide.
-      useSlideStore.getState().setCodeSlideForSlide(0, first.id);
-    }
-  };
-
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragging(false);
@@ -114,49 +77,9 @@ export const UploadScreen: React.FC = () => {
           </h1>
         </div>
         <p className="mb-6 text-xs text-[var(--app-muted)]">
-          Lade eine PowerPoint-Vorlage (<code>.pptx</code>), um alle
-          Folienmaster und Layouts automatisch zu erkennen.
+          Lade deine PowerPoint-Vorlage (<code>.pptx</code>). React-Folien
+          werden anschließend auf deine Layouts angewendet.
         </p>
-
-        {/* Code-Slide Quick-Start */}
-        <div className="mb-3">
-          <Button
-            variant="default"
-            size="md"
-            onClick={handleLoadCodeSlideDemo}
-            className="w-full"
-          >
-            <Code2 size={14} />
-            React-Folie ansehen: DORA &amp; PAM
-          </Button>
-          <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
-            Eine React-Datei = eine Folie. Master lässt sich frei wechseln.
-          </p>
-        </div>
-
-        {/* Demo button */}
-        <div className="mb-4">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleLoadDemo}
-            className="w-full"
-          >
-            <Palette size={14} />
-            Demo-Vorlage laden (3 Master, 11 Layouts)
-          </Button>
-          <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
-            Corporate Design, Startup Modern, Executive Dark — sofort ausprobieren
-          </p>
-        </div>
-
-        <div className="mb-4 flex items-center gap-2">
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-          <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
-            oder eigene Vorlage
-          </span>
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-        </div>
 
         {/* Stored templates quick access */}
         {hasSaved && (

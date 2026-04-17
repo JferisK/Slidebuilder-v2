@@ -14,16 +14,21 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { CodeSlide } from "../types";
 
 /**
  * DORA × Privileged Access Management × CISO.
  *
- * A self-contained React slide (1:1 — one file, one slide). Structure and
- * content live here; colors and fonts come from the active master via the
- * `--slide-*` CSS variables set by the canvas wrapper.
+ * Provides content for two placeholders from the host PowerPoint layout:
+ *   - `0` (title) → icon + title + subtitle + meta badges
+ *   - `1` (body)  → 3-column grid (DORA-Vorgaben, PAM-Kontrollen,
+ *                   CISO-Implikationen) + Meldefristen footer row
+ *
+ * All colors/fonts are pulled from the active master via `--slide-*`
+ * CSS variables, so the same slide adapts to any PPTX theme.
  */
 
-const SURFACE =
+const SURFACE_BG =
   "color-mix(in srgb, var(--slide-primary) 6%, var(--slide-bg))";
 const SURFACE_BORDER =
   "color-mix(in srgb, var(--slide-primary) 18%, transparent)";
@@ -37,22 +42,22 @@ const Column: React.FC<{
   children: React.ReactNode;
 }> = ({ icon, eyebrow, title, children }) => (
   <Card
-    className="flex h-full flex-col"
+    className="flex h-full min-h-0 flex-col"
     style={
       {
-        "--card-bg": SURFACE,
+        "--card-bg": SURFACE_BG,
         "--card-border": SURFACE_BORDER,
         "--card-fg": "var(--slide-text)",
       } as React.CSSProperties
     }
   >
-    <CardHeader className="pb-3">
+    <CardHeader className="p-3 pb-2">
       <div
         className="flex items-center gap-2"
         style={{ color: "var(--slide-primary)" }}
       >
         <span
-          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          className="flex h-7 w-7 items-center justify-center rounded-md"
           style={{
             background:
               "color-mix(in srgb, var(--slide-primary) 14%, transparent)",
@@ -62,13 +67,13 @@ const Column: React.FC<{
         </span>
         <div className="flex flex-col leading-tight">
           <span
-            className="text-[10px] uppercase tracking-[0.14em]"
+            className="text-[9px] uppercase tracking-[0.12em]"
             style={{ color: "var(--slide-text-muted)" }}
           >
             {eyebrow}
           </span>
           <CardTitle
-            className="text-[17px]"
+            className="text-[14px]"
             style={{
               color: "var(--slide-primary)",
               fontFamily: "var(--slide-font-heading)",
@@ -80,7 +85,7 @@ const Column: React.FC<{
       </div>
     </CardHeader>
     <CardContent
-      className="flex flex-1 flex-col gap-2.5 pb-5 text-[13px] leading-snug"
+      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden p-3 pt-0 text-[11px] leading-snug"
       style={{
         color: "var(--slide-text)",
         fontFamily: "var(--slide-font-body)",
@@ -91,13 +96,13 @@ const Column: React.FC<{
   </Card>
 );
 
-const Row: React.FC<{
-  label?: string;
-  children: React.ReactNode;
-}> = ({ label, children }) => (
-  <div className="flex flex-col gap-1">
+const Row: React.FC<{ label?: string; children: React.ReactNode }> = ({
+  label,
+  children,
+}) => (
+  <div className="flex flex-col gap-0.5">
     {label && (
-      <Badge variant="secondary" className="self-start text-[10px]">
+      <Badge variant="secondary" className="self-start text-[9px]">
         {label}
       </Badge>
     )}
@@ -105,187 +110,180 @@ const Row: React.FC<{
   </div>
 );
 
-const DoraPamCisoSlide: React.FC = () => {
-  return (
+// ─── Slot 0: Title ─────────────────────────────────────────────
+const TitleSlot: React.FC = () => (
+  <div
+    className="flex h-full w-full items-center justify-between gap-4"
+    style={{ fontFamily: "var(--slide-font-body)" }}
+  >
+    <div className="flex min-w-0 items-center gap-3">
+      <span
+        className="flex h-11 w-11 flex-none items-center justify-center rounded-xl"
+        style={{
+          background: "var(--slide-primary)",
+          color: "var(--slide-bg)",
+        }}
+      >
+        <ShieldCheck size={22} />
+      </span>
+      <div className="flex min-w-0 flex-col">
+        <div
+          className="text-[10px] uppercase tracking-[0.2em]"
+          style={{ color: "var(--slide-text-muted)" }}
+        >
+          EU-Verordnung 2022/2554 · DORA
+        </div>
+        <div
+          className="truncate text-[26px] font-semibold leading-[1.1]"
+          style={{
+            color: "var(--slide-primary)",
+            fontFamily: "var(--slide-font-heading)",
+          }}
+        >
+          DORA &amp; Privileged Access Management
+        </div>
+        <div
+          className="mt-0.5 truncate text-[12px] leading-snug"
+          style={{ color: "var(--slide-text-muted)" }}
+        >
+          Vorgaben für privilegierten Zugriff &amp; CISO-Implikationen
+        </div>
+      </div>
+    </div>
+    <div className="flex flex-none flex-col items-end gap-1">
+      <Badge variant="default">
+        <Clock size={10} /> Anwendbar seit 17.01.2025
+      </Badge>
+      <Badge variant="outline">Finanzsektor · ICT-Risk</Badge>
+    </div>
+  </div>
+);
+
+// ─── Slot 1: Body ──────────────────────────────────────────────
+const BodySlot: React.FC = () => (
+  <div
+    className="flex h-full w-full flex-col gap-2"
+    style={{ fontFamily: "var(--slide-font-body)" }}
+  >
     <div
-      className="flex h-full w-full flex-col"
+      className="grid min-h-0 flex-1 grid-cols-3 gap-2"
+      style={{ minHeight: 0 }}
+    >
+      <Column
+        icon={<FileText size={14} />}
+        eyebrow="Regulatorisch"
+        title="DORA-Vorgaben"
+      >
+        <Row label="Art. 5">
+          ICT-Governance — Verantwortung des Leitungsorgans, dokumentierte
+          Strategie.
+        </Row>
+        <Row label="Art. 9 (3–4)">
+          Identitäts- &amp; Zugriffsmanagement; starke Authentifizierung
+          für kritische Funktionen.
+        </Row>
+        <Row label="Art. 28">
+          Third-Party-ICT-Risk — privilegierte Dienstleisterzugriffe im
+          Register &amp; Vertrag.
+        </Row>
+        <Row label="RTS / Annex II">
+          Least-Privilege, Segregation of Duties, regelmäßige
+          Rezertifizierung.
+        </Row>
+      </Column>
+      <Column
+        icon={<Lock size={14} />}
+        eyebrow="Technische Umsetzung"
+        title="PAM-Kontrollen"
+      >
+        <Row label="Just-in-Time">
+          Temporäre Privilegien on-demand statt permanenter Admin-Rechte.
+        </Row>
+        <Row label="MFA · Phishing-resistant">
+          Zwingend für alle privilegierten &amp; Service-Accounts.
+        </Row>
+        <Row label="Session-Recording">
+          Aufzeichnung &amp; Monitoring aller Admin-Sessions auf
+          kritischen Systemen.
+        </Row>
+        <Row label="Vaulting · Rotation">
+          Credentials im Vault, automatische Rotation, keine
+          Shared-Accounts.
+        </Row>
+        <Row label="Segregation">
+          Getrennte Tier-0 / Tier-1 Accounts — Admin ≠ Office-User.
+        </Row>
+      </Column>
+      <Column
+        icon={<UserCog size={14} />}
+        eyebrow="Für den CISO"
+        title="Implikationen"
+      >
+        <Row label="Board-Reporting">
+          Jährlicher ICT-Risk-Report inkl. privilegierter Zugänge,
+          Sign-off Leitungsorgan.
+        </Row>
+        <Row label="Incident-Response">
+          Klassifikation + Meldewege an die Aufsichtsbehörde.
+        </Row>
+        <Row label="TLPT alle 3 Jahre">
+          Threat-Led-Pen-Testing für bedeutende Institute — PAM im
+          Pflicht-Scope.
+        </Row>
+        <Row label="3rd-Party-Register">
+          Register aller kritischen ICT-Provider + Exit-Strategie.
+        </Row>
+        <Row label="Policies &amp; Awareness">
+          Policies, Beschaffungs-Templates und Schulungen ausrichten.
+        </Row>
+      </Column>
+    </div>
+
+    <div
+      className="flex flex-none items-center justify-between gap-3 rounded-lg px-3 py-2"
       style={{
-        padding: "36px 48px 28px",
-        background: "var(--slide-bg)",
-        fontFamily: "var(--slide-font-body)",
+        background:
+          "color-mix(in srgb, var(--slide-accent) 10%, transparent)",
+        border: `1px solid ${ACCENT_BORDER}`,
         color: "var(--slide-text)",
       }}
     >
-      {/* ─── Header ─────────────────────────────────────────────── */}
-      <header className="flex items-start justify-between gap-6">
-        <div className="flex items-start gap-3">
-          <span
-            className="flex h-11 w-11 flex-none items-center justify-center rounded-xl"
+      <div className="flex items-center gap-2 text-[11px]">
+        <AlertTriangle
+          size={13}
+          style={{ color: "var(--slide-accent)" }}
+        />
+        <span>
+          <strong
             style={{
-              background: "var(--slide-primary)",
-              color: "var(--slide-bg)",
+              color: "var(--slide-accent)",
+              fontFamily: "var(--slide-font-heading)",
             }}
           >
-            <ShieldCheck size={22} />
-          </span>
-          <div className="flex flex-col">
-            <div
-              className="text-[11px] uppercase tracking-[0.2em]"
-              style={{ color: "var(--slide-text-muted)" }}
-            >
-              EU-Verordnung 2022/2554 · DORA
-            </div>
-            <h1
-              className="mt-0.5 text-[30px] font-semibold leading-[1.1]"
-              style={{
-                color: "var(--slide-primary)",
-                fontFamily: "var(--slide-font-heading)",
-              }}
-            >
-              DORA &amp; Privileged Access Management
-            </h1>
-            <p
-              className="mt-1 text-[14px] leading-snug"
-              style={{ color: "var(--slide-text-muted)" }}
-            >
-              Was die Verordnung für privilegierten Zugriff vorschreibt — und
-              was CISOs jetzt umsetzen müssen.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 pt-1">
-          <Badge variant="default">
-            <Clock size={11} /> Anwendbar seit 17.01.2025
-          </Badge>
-          <Badge variant="outline">Finanzsektor · ICT-Risk</Badge>
-        </div>
-      </header>
-
-      {/* Accent divider */}
+            Meldefristen schwerer Vorfälle:
+          </strong>{" "}
+          initial ≤ 4 h · intermediate ≤ 72 h · final ≤ 1 Monat
+        </span>
+      </div>
       <div
-        className="mt-5 h-px w-full"
-        style={{ background: ACCENT_BORDER }}
-      />
-
-      {/* ─── Body: 3 columns ───────────────────────────────────── */}
-      <main
-        className="mt-5 grid flex-1 grid-cols-3 gap-4"
-        style={{ minHeight: 0 }}
+        className="text-[10px]"
+        style={{ color: "var(--slide-text-muted)" }}
       >
-        {/* Column 1: DORA requirements */}
-        <Column
-          icon={<FileText size={16} />}
-          eyebrow="Regulatorisch"
-          title="DORA-Vorgaben"
-        >
-          <Row label="Art. 5">
-            ICT-Governance — Verantwortung des Leitungsorgans, dokumentierte
-            Strategie für digitalen Betrieb.
-          </Row>
-          <Row label="Art. 9 (3–4)">
-            Identitäts-, Zugriffs- &amp; Rechtemanagement; starke
-            Authentifizierung für kritische Funktionen.
-          </Row>
-          <Row label="Art. 28">
-            Third-Party-ICT-Risk — privilegierte Dienstleisterzugriffe im
-            Register &amp; Vertrag verankert.
-          </Row>
-          <Row label="RTS / Annex II">
-            Least-Privilege, Segregation of Duties, regelmäßige
-            Rezertifizierung.
-          </Row>
-        </Column>
-
-        {/* Column 2: PAM controls */}
-        <Column
-          icon={<Lock size={16} />}
-          eyebrow="Technische Umsetzung"
-          title="PAM-Kontrollen"
-        >
-          <Row label="Just-in-Time">
-            Temporäre Privilegien on-demand statt permanenter Admin-Rechte.
-          </Row>
-          <Row label="MFA · Phishing-resistant">
-            Zwingend für alle privilegierten &amp; Service-Accounts.
-          </Row>
-          <Row label="Session-Recording">
-            Aufzeichnung &amp; Echtzeit-Monitoring aller Admin-Sessions auf
-            kritischen Systemen.
-          </Row>
-          <Row label="Vaulting · Rotation">
-            Credentials im PAM-Vault, automatische Rotation, keine
-            Shared-Accounts.
-          </Row>
-          <Row label="Segregation">
-            Getrennte Tier-0 / Tier-1 Accounts — Admin ≠ Office-User.
-          </Row>
-        </Column>
-
-        {/* Column 3: CISO implications */}
-        <Column
-          icon={<UserCog size={16} />}
-          eyebrow="Für den CISO"
-          title="Implikationen"
-        >
-          <Row label="Board-Reporting">
-            Jährlicher ICT-Risk-Report inkl. privilegierter Zugänge,
-            Sign-off durch das Leitungsorgan.
-          </Row>
-          <Row label="Incident-Response">
-            Klassifikation + Meldewege an die zuständige Aufsichtsbehörde
-            einrichten.
-          </Row>
-          <Row label="TLPT alle 3 Jahre">
-            Threat-Led-Penetration-Testing für bedeutende Institute —
-            PAM-Umgebung ist Pflicht-Scope.
-          </Row>
-          <Row label="3rd-Party-Register">
-            Register aller kritischen ICT-Provider inkl. deren
-            Admin-Zugriffe &amp; Exit-Strategie.
-          </Row>
-          <Row label="Awareness &amp; Policies">
-            Policies, Beschaffungs-Templates und Schulungen DORA-konform
-            ausrichten.
-          </Row>
-        </Column>
-      </main>
-
-      {/* ─── Footer ─────────────────────────────────────────────── */}
-      <footer
-        className="mt-5 flex items-center justify-between gap-4 rounded-lg px-4 py-3"
-        style={{
-          background:
-            "color-mix(in srgb, var(--slide-accent) 10%, transparent)",
-          border: `1px solid ${ACCENT_BORDER}`,
-          color: "var(--slide-text)",
-        }}
-      >
-        <div className="flex items-center gap-2 text-[12px]">
-          <AlertTriangle
-            size={15}
-            style={{ color: "var(--slide-accent)" }}
-          />
-          <span>
-            <strong
-              style={{
-                color: "var(--slide-accent)",
-                fontFamily: "var(--slide-font-heading)",
-              }}
-            >
-              Meldefristen bei schwerwiegenden Vorfällen:
-            </strong>{" "}
-            initial ≤ 4 h · intermediate ≤ 72 h · final ≤ 1 Monat
-          </span>
-        </div>
-        <div
-          className="text-[11px]"
-          style={{ color: "var(--slide-text-muted)" }}
-        >
-          Quelle: VO (EU) 2022/2554 · RTS ICT-Risikomanagement
-        </div>
-      </footer>
+        VO (EU) 2022/2554 · RTS ICT-Risk
+      </div>
     </div>
-  );
+  </div>
+);
+
+const DoraPamCisoSlide: CodeSlide = {
+  id: "dora-pam-ciso",
+  name: "DORA & PAM — CISO-Implikationen",
+  description:
+    "Was die EU-Verordnung 2022/2554 für privilegierten Zugriff vorschreibt.",
+  slots: {
+    "0": TitleSlot,
+    "1": BodySlot,
+  },
 };
 
 export default DoraPamCisoSlide;

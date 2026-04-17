@@ -16,6 +16,12 @@ export interface DynamicSlideProps {
   showPlaceholderOutlines?: boolean;
   /** Called when a placeholder box is clicked */
   onPlaceholderClick?: (placeholder: Placeholder) => void;
+  /**
+   * Optional React components keyed by placeholder idx. When a placeholder's
+   * idx matches a key here, the component is rendered inside the placeholder
+   * box instead of the default text rendering. Comes from a code slide.
+   */
+  codeSlots?: Record<string, React.FC>;
 }
 
 const FALLBACK_TEXT: Record<string, string> = {
@@ -142,6 +148,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   selectedPlaceholderIdx = null,
   showPlaceholderOutlines = true,
   onPlaceholderClick,
+  codeSlots,
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
   return (
@@ -157,12 +164,16 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
     >
       {layout.placeholders.map((placeholder) => {
         const isSelected = selectedPlaceholderIdx === placeholder.idx;
+        const Slot = codeSlots?.[String(placeholder.idx)];
+        const hasSlot = Boolean(Slot);
         const outlineStyle: React.CSSProperties =
           !isExporting && showPlaceholderOutlines
             ? {
                 border: isSelected
                   ? "2px solid #3b82f6"
-                  : "1px dashed rgba(150,150,150,0.35)",
+                  : hasSlot
+                    ? "1px dashed rgba(59,130,246,0.55)"
+                    : "1px dashed rgba(150,150,150,0.35)",
                 borderRadius: 2,
                 cursor: onPlaceholderClick ? "pointer" : undefined,
                 transition: "border-color 0.15s, box-shadow 0.15s",
@@ -177,6 +188,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
             key={`${placeholder.idx}-${placeholder.type}`}
             data-placeholder-idx={placeholder.idx}
             data-placeholder-type={placeholder.type}
+            data-code-slot={hasSlot ? "true" : undefined}
             onClick={(e) => {
               if (onPlaceholderClick) {
                 e.stopPropagation();
@@ -189,15 +201,21 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
               top: `${placeholder.position.y}%`,
               width: `${placeholder.position.w}%`,
               height: `${placeholder.position.h}%`,
-              padding: "4px",
+              padding: hasSlot ? 0 : "4px",
               display: "flex",
-              alignItems: "flex-start",
+              alignItems: hasSlot ? "stretch" : "flex-start",
               justifyContent: "flex-start",
               overflow: "hidden",
               ...outlineStyle,
             }}
           >
-            {renderPlaceholderContent(placeholder, content)}
+            {Slot ? (
+              <div style={{ width: "100%", height: "100%" }}>
+                <Slot />
+              </div>
+            ) : (
+              renderPlaceholderContent(placeholder, content)
+            )}
             {/* Small label showing type + idx in outline mode */}
             {!isExporting && showPlaceholderOutlines && (
               <span
@@ -210,7 +228,9 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                   padding: "1px 4px",
                   background: isSelected
                     ? "rgba(59,130,246,0.7)"
-                    : "rgba(0,0,0,0.45)",
+                    : hasSlot
+                      ? "rgba(59,130,246,0.55)"
+                      : "rgba(0,0,0,0.45)",
                   color: "#fff",
                   borderRadius: "0 2px 0 3px",
                   lineHeight: 1.4,
@@ -218,6 +238,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                 }}
               >
                 {placeholder.type}:{placeholder.idx}
+                {hasSlot && " · code"}
               </span>
             )}
           </div>
