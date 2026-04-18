@@ -20,7 +20,6 @@ import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
-import { CodeExportButton } from "./CodeExportButton";
 import {
   getCodeSlidesForRepoFolder,
   getRegisteredSlidesForRepoFolder,
@@ -651,27 +650,21 @@ export const SettingsPanel: React.FC = () => {
           </div>
         </CollapsibleSection>
 
-        <Separator />
+      </div>
 
-        {/* Export */}
-        <div>
-          <SectionLabel>Export</SectionLabel>
-          <div className="flex flex-col gap-2">
-            <ExportButton />
-            <CodeExportButton />
-          </div>
+      <div className="shrink-0 border-t border-[var(--app-border)] bg-[var(--app-panel)] p-4">
+        <SectionLabel>Export</SectionLabel>
+        <div className="flex flex-col gap-2">
+          <ExportButton />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setOnboardingDone(false)}
+            className="w-full justify-start text-[var(--app-muted)]"
+          >
+            <HelpCircle size={12} /> Anleitung erneut anzeigen
+          </Button>
         </div>
-
-        <Separator />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setOnboardingDone(false)}
-          className="w-full justify-start text-[var(--app-muted)]"
-        >
-          <HelpCircle size={12} /> Anleitung erneut anzeigen
-        </Button>
       </div>
     </aside>
   );
