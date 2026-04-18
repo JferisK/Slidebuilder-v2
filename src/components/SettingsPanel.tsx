@@ -19,7 +19,12 @@ import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
-import { codeSlides, getCodeSlide } from "@/slides/registry";
+import {
+  codeSlides,
+  slideTemplates,
+  getCodeSlide,
+  isTemplateId,
+} from "@/slides/registry";
 import type { Placeholder } from "@/parser/pptxParser";
 
 const PLACEHOLDER_TYPE_LABELS: Record<string, string> = {
@@ -234,10 +239,15 @@ export const SettingsPanel: React.FC = () => {
   }
 
   const activeCodeSlide = getCodeSlide(activeSlide.codeSlideId);
+  const activeIsTemplate = isTemplateId(activeSlide.codeSlideId);
   const codeSlotMapping = activeSlide.codeSlotMapping ?? {};
   const codeSlideOptions = [
     { value: "__none__", label: "— Keine (nur Platzhalter-Text)" },
     ...codeSlides.map((cs) => ({ value: cs.id, label: cs.name })),
+  ];
+  const slideTemplateOptions = [
+    { value: "__none__", label: "— Keine Vorlage" },
+    ...slideTemplates.map((cs) => ({ value: cs.id, label: cs.name })),
   ];
 
   const masterOptions = presentation.masters.map((m) => ({
@@ -345,7 +355,9 @@ export const SettingsPanel: React.FC = () => {
         <div>
           <SectionLabel>Folienauswahl</SectionLabel>
           <Select
-            value={activeSlide.codeSlideId ?? "__none__"}
+            value={
+              activeIsTemplate ? "__none__" : activeSlide.codeSlideId ?? "__none__"
+            }
             options={codeSlideOptions}
             onValueChange={(v) =>
               setCodeSlideForSlide(
@@ -355,11 +367,11 @@ export const SettingsPanel: React.FC = () => {
             }
           />
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {activeCodeSlide
+            {activeCodeSlide && !activeIsTemplate
               ? `Slots: ${Object.keys(activeCodeSlide.slots)
                   .map((k) => `:${k}`)
                   .join(", ")} — Layout + Master liefern Position & Theme.`
-              : "Eine React-Datei füllt Placeholder (z. B. title:0, body:1) im Layout."}
+              : "Echte React-Folien mit finalem Inhalt (z. B. title:0, body:1)."}
           </div>
           <Button
             size="sm"
@@ -372,6 +384,30 @@ export const SettingsPanel: React.FC = () => {
           >
             <Code2 size={12} /> Neue Folie mit React-Inhalt
           </Button>
+        </div>
+
+        <Separator />
+
+        {/* Vorlagen / Ideenvorschläge */}
+        <div>
+          <SectionLabel>Vorlagen / Ideenvorschläge</SectionLabel>
+          <Select
+            value={
+              activeIsTemplate ? activeSlide.codeSlideId ?? "__none__" : "__none__"
+            }
+            options={slideTemplateOptions}
+            onValueChange={(v) =>
+              setCodeSlideForSlide(
+                activeSlideIndex,
+                v === "__none__" ? null : v,
+              )
+            }
+          />
+          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+            {activeIsTemplate && activeCodeSlide
+              ? activeCodeSlide.description
+              : "Wireframe-Skizzen gängiger Slide-Muster — nur zur Inspiration, kein finaler Inhalt."}
+          </div>
         </div>
 
         <Separator />
