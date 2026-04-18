@@ -17,7 +17,7 @@ export interface SlideMaster {
 }
 
 export interface SlideTheme {
-  cssVars: {
+  cssVars: Record<string, string> & {
     "--slide-bg": string;
     "--slide-primary": string;
     "--slide-secondary": string;
@@ -250,6 +250,26 @@ function buildThemePalette(
 
 FALLBACK_THEME.palette = buildThemePalette(FALLBACK_THEME_COLORS);
 
+function cssVarSuffixFromLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/%/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function applyPaletteCssVars(theme: SlideTheme) {
+  for (const family of theme.palette) {
+    theme.cssVars[`--ppt-${family.key}`] = family.color;
+    for (const variant of family.variants) {
+      const suffix = cssVarSuffixFromLabel(variant.label);
+      theme.cssVars[`--ppt-${family.key}-${suffix}`] = variant.color;
+    }
+  }
+}
+
+applyPaletteCssVars(FALLBACK_THEME);
+
 function resolveFont(
   typeface: string | null | undefined,
   fallback = "Calibri, sans-serif",
@@ -344,6 +364,7 @@ function parseThemeFromDoc(doc: Document): SlideTheme {
   if (theme.palette.length === 0) {
     theme.palette = buildThemePalette(FALLBACK_THEME_COLORS);
   }
+  applyPaletteCssVars(theme);
   return theme;
 }
 
