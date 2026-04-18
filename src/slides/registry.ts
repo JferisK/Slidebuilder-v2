@@ -1,5 +1,9 @@
 import type { CodeSlide } from "./types";
 import DoraPamCisoSlide from "./dora-pam/DoraPamCisoSlide";
+import {
+  AiAgentsIdentitiesSlide,
+  IamAiDeepfakesSlide,
+} from "./DI Workshop";
 import * as T from "./templates";
 
 export interface RegisteredCodeSlide extends CodeSlide {
@@ -12,6 +16,16 @@ export interface RegisteredCodeSlide extends CodeSlide {
  * content. Shown in the "Folienauswahl" dropdown.
  */
 export const codeSlides: RegisteredCodeSlide[] = [
+  {
+    ...IamAiDeepfakesSlide,
+    sourceFolder: "DI Workshop",
+    kind: "production",
+  },
+  {
+    ...AiAgentsIdentitiesSlide,
+    sourceFolder: "DI Workshop",
+    kind: "production",
+  },
   {
     ...DoraPamCisoSlide,
     sourceFolder: "dora-pam",
