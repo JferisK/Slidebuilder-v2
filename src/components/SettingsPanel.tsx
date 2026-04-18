@@ -21,12 +21,9 @@ import { Button } from "./ui/button";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
 import {
-  getCodeSlidesForRepoFolder,
   getRegisteredSlidesForRepoFolder,
   slideTemplates,
   getCodeSlide,
-  getSlideTemplatesForRepoFolder,
-  isTemplateId,
 } from "@/slides/registry";
 import type { Placeholder } from "@/parser/pptxParser";
 
@@ -53,6 +50,18 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
 }) => (
   <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[var(--app-muted)]">
     {children}
+  </div>
+);
+
+const SettingsGroup: React.FC<{
+  title: string;
+  children: React.ReactNode;
+}> = ({ title, children }) => (
+  <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+    <div className="mb-3 text-[10px] font-medium uppercase tracking-wider text-[var(--app-muted)]">
+      {title}
+    </div>
+    <div className="flex flex-col gap-3">{children}</div>
   </div>
 );
 
@@ -302,18 +311,9 @@ export const SettingsPanel: React.FC = () => {
   }
 
   const activeCodeSlide = getCodeSlide(activeSlide.codeSlideId);
-  const activeIsTemplate = isTemplateId(activeSlide.codeSlideId);
   const codeSlotMapping = activeSlide.codeSlotMapping ?? {};
-  const repoCodeSlides = React.useMemo(
-    () => getCodeSlidesForRepoFolder(activeRepoFolder),
-    [activeRepoFolder],
-  );
   const repoFolderSlides = React.useMemo(
     () => getRegisteredSlidesForRepoFolder(activeRepoFolder),
-    [activeRepoFolder],
-  );
-  const repoTemplateSlides = React.useMemo(
-    () => getSlideTemplatesForRepoFolder(activeRepoFolder),
     [activeRepoFolder],
   );
   const projectSlides = React.useMemo(
@@ -328,28 +328,28 @@ export const SettingsPanel: React.FC = () => {
     repoFolderSlides.some((slide) => slide.id === activeSlide.codeSlideId)
       ? activeSlide.codeSlideId
       : undefined;
-  const projectSlideOptions = activeProject
+  const activeSlideSelectionValue = activeProject
+    ? activeProjectSlideId ?? activeSlide.codeSlideId
+    : activeRepoCodeSlideId;
+  const slideSelectionOptions = activeProject
     ? [
-        { value: "__none__", label: "— Keine gespeicherte Folie" },
+        { value: "__none__", label: "— Keine Folie ausgewählt" },
         ...projectSlides.map((slide) => ({
           value: slide.id,
           label: slide.name,
+        })),
+        ...slideTemplates.map((slide) => ({
+          value: slide.id,
+          label: `${slide.name} · Vorlage`,
         })),
       ]
     : [
         { value: "__none__", label: "— Keine Repo-Folie" },
         ...repoFolderSlides.map((slide) => ({
           value: slide.id,
-          label: slide.name,
+          label: slide.kind === "template" ? `${slide.name} · Vorlage` : slide.name,
         })),
       ];
-  const slideTemplateOptions = [
-    { value: "__none__", label: "— Keine Vorlage" },
-    ...(activeProject ? slideTemplates : repoTemplateSlides).map((cs) => ({
-      value: cs.id,
-      label: cs.name,
-    })),
-  ];
 
   const masterOptions = presentation.masters.map((m) => ({
     value: m.id,
@@ -388,148 +388,107 @@ export const SettingsPanel: React.FC = () => {
       className="flex h-full flex-none flex-col border-l border-[var(--app-border)] bg-[var(--app-panel)]"
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
-        {/* Vorlage */}
-        {templates.length > 0 && (
-          <div>
-            <SectionLabel>Vorlage (PPTX)</SectionLabel>
-            <div className="flex items-center gap-1">
-              <div className="flex-1">
-                <Select
-                  value={activeTemplateId ?? ""}
-                  options={templateOptions}
-                  onValueChange={(v) => setActiveTemplate(v)}
-                />
-              </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleUploadMore}
-                title="Weitere Vorlage hochladen"
-              >
-                <Upload size={13} />
-              </Button>
-              {activeTemplateId && templates.length > 1 && (
+        <SettingsGroup title="PPTX-Struktur">
+          {templates.length > 0 && (
+            <div>
+              <SectionLabel>Vorlage (PPTX)</SectionLabel>
+              <div className="flex items-center gap-1">
+                <div className="flex-1">
+                  <Select
+                    value={activeTemplateId ?? ""}
+                    options={templateOptions}
+                    onValueChange={(v) => setActiveTemplate(v)}
+                  />
+                </div>
                 <Button
                   size="icon"
-                  variant="destructive"
-                  onClick={() => {
-                    if (activeTemplateId) deleteTemplate(activeTemplateId);
-                  }}
-                  title="Vorlage entfernen"
+                  variant="ghost"
+                  onClick={handleUploadMore}
+                  title="Weitere Vorlage hochladen"
                 >
-                  <Trash2 size={13} />
+                  <Upload size={13} />
                 </Button>
-              )}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pptx"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Folienmaster */}
-        <div>
-          <SectionLabel>Folienmaster</SectionLabel>
-          <Select
-            value={activeMaster.id}
-            options={masterOptions}
-            onValueChange={(v) => setActiveMaster(v)}
-          />
-        </div>
-
-        <Separator />
-
-        {/* Layout */}
-        {activeLayout && (
-          <div>
-            <SectionLabel>Layout</SectionLabel>
-            <Select
-              value={activeLayout.id}
-              options={layoutOptions}
-              onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
-            />
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Projektordner */}
-        <div>
-          <SectionLabel>Projektordner</SectionLabel>
-          <ProjectManager />
-        </div>
-
-        <Separator />
-
-        {/* Folienauswahl */}
-        <div>
-          <SectionLabel>Folienauswahl</SectionLabel>
-          <Select
-            value={(activeProject ? activeProjectSlideId : activeRepoCodeSlideId) ?? "__none__"}
-            options={projectSlideOptions}
-            disabled={!activeProject && !activeRepoFolder}
-            onValueChange={(v) => {
-              if (v === "__none__") {
-                setCodeSlideForSlide(activeSlideIndex, null);
-                return;
-              }
-              if (activeProject) {
-                loadProjectSlideIntoActive(activeProject.id, v);
-              } else {
-                setCodeSlideForSlide(activeSlideIndex, v);
-              }
-            }}
-          />
-          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {!activeProject
-              ? activeRepoFolder
-                ? repoFolderSlides.length > 0
-                  ? `Repo-Ordner "${activeRepoFolder}" liefert ${repoFolderSlides.length} auswählbare Folie(n).`
-                  : `Repo-Ordner "${activeRepoFolder}" enthält keine auswählbaren Folien.`
-                : "Bitte zuerst ein Projekt oder einen Repo-Ordner auswählen."
-              : projectSlides.length > 0
-                ? activeFolderId
-                  ? "Es werden nur Slides aus dem gewählten Ordner und seinen Unterordnern angeboten."
-                  : "Es werden alle gespeicherten Slides des aktiven Projekts angeboten."
-                : "Im aktuellen Filterbereich sind noch keine gespeicherten Slides vorhanden."}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Vorlagen / Ideenvorschläge */}
-        <CollapsibleSection
-          label="Vorlagen / Ideenvorschläge"
-          defaultOpen={false}
-        >
-          <Select
-            value={
-              activeIsTemplate ? activeSlide.codeSlideId ?? "__none__" : "__none__"
-            }
-            options={slideTemplateOptions}
-            onValueChange={(v) =>
-              setCodeSlideForSlide(
-                activeSlideIndex,
-                v === "__none__" ? null : v,
-              )
-            }
-          />
-          {!activeProject && activeRepoFolder && (
-            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-              {repoTemplateSlides.length > 0
-                ? `Repo-Ordner "${activeRepoFolder}" liefert ${repoTemplateSlides.length} Vorlagen.`
-                : `Repo-Ordner "${activeRepoFolder}" enthält keine Vorlagen.`}
+                {activeTemplateId && templates.length > 1 && (
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    onClick={() => {
+                      if (activeTemplateId) deleteTemplate(activeTemplateId);
+                    }}
+                    title="Vorlage entfernen"
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pptx"
+                className="hidden"
+                onChange={handleFileChange}
+              />
             </div>
           )}
-        </CollapsibleSection>
 
-        <Separator />
+          <div>
+            <SectionLabel>Folienmaster</SectionLabel>
+            <Select
+              value={activeMaster.id}
+              options={masterOptions}
+              onValueChange={(v) => setActiveMaster(v)}
+            />
+          </div>
+
+          {activeLayout && (
+            <div>
+              <SectionLabel>Layout</SectionLabel>
+              <Select
+                value={activeLayout.id}
+                options={layoutOptions}
+                onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+              />
+            </div>
+          )}
+        </SettingsGroup>
+
+        <SettingsGroup title="Projekt & Folien">
+          <div>
+            <SectionLabel>Projektordner</SectionLabel>
+            <ProjectManager />
+          </div>
+
+          <div>
+            <SectionLabel>Folienauswahl</SectionLabel>
+            <Select
+              value={activeSlideSelectionValue ?? "__none__"}
+              options={slideSelectionOptions}
+              disabled={!activeProject && !activeRepoFolder}
+              onValueChange={(v) => {
+                if (v === "__none__") {
+                  setCodeSlideForSlide(activeSlideIndex, null);
+                  return;
+                }
+                if (activeProject && projectSlides.some((slide) => slide.id === v)) {
+                  loadProjectSlideIntoActive(activeProject.id, v);
+                  return;
+                }
+                setCodeSlideForSlide(activeSlideIndex, v);
+              }}
+            />
+            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+              {!activeProject
+                ? activeRepoFolder
+                  ? repoFolderSlides.length > 0
+                    ? `Repo-Ordner "${activeRepoFolder}" liefert ${repoFolderSlides.length} auswählbare Folie(n).`
+                    : `Repo-Ordner "${activeRepoFolder}" enthält keine auswählbaren Folien.`
+                  : "Bitte zuerst ein Projekt oder einen Repo-Ordner auswählen."
+                : activeFolderId
+                  ? "Der gewählte Ordner liefert Projekt-Slides; Vorlagen stehen zusätzlich zentral in der Folienauswahl bereit."
+                  : "Es werden Projekt-Slides und verfügbare Vorlagen in einer gemeinsamen Auswahl angeboten."}
+            </div>
+          </div>
+        </SettingsGroup>
 
         {/* Bereiche (einklappbar) */}
         {activeLayout && (
