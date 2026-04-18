@@ -37,6 +37,8 @@ export interface SavedSlide {
   layoutId: string;
   content: Record<string, string>;
   reactCode?: string;
+  fileName?: string;
+  relativePath?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -47,6 +49,8 @@ export interface Project {
   templateId: string;
   folders: ProjectFolder[];
   slides: SavedSlide[];
+  directoryHandle?: FileSystemDirectoryHandle | null;
+  directoryName?: string | null;
   createdAt: number;
   updatedAt: number;
 }

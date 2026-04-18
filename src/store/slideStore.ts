@@ -22,6 +22,11 @@ import {
 } from "@/lib/templateStorage";
 import { getCodeSlide } from "@/slides/registry";
 import { autoMapCodeSlots } from "@/slides/mapping";
+import {
+  deleteProjectSlideFile,
+  pickProjectDirectoryHandle,
+  syncProjectSlideFile,
+} from "@/lib/projectFileSystem";
 
 // ---------- Types -----------------------------------------------------------
 
@@ -30,6 +35,8 @@ export interface Slide {
   masterId: string;
   layoutId: string;
   content: Record<string, string>;
+  projectSlideId?: string;
+  projectSlideName?: string;
   /**
    * If set, React slots from the named code slide are rendered inside the
    * matching placeholder boxes of this slide's layout. The master is still
@@ -72,6 +79,9 @@ export type SelectionMode = "pin" | "area" | "select";
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
 export const ZOOM_STEP = 0.1;
+const ACTIVE_PROJECT_STORAGE_KEY = "slideforge-active-project";
+const ACTIVE_FOLDER_STORAGE_KEY = "slideforge-active-folder";
+const ACTIVE_REPO_FOLDER_STORAGE_KEY = "slideforge-active-repo-folder";
 
 export type ToastKind = "success" | "info" | "error";
 
@@ -153,15 +163,25 @@ export interface SlideForgeStore {
   // ── Projects ─────────────────────────────────────────────
   projects: Project[];
   activeProjectId: string | null;
+  activeFolderId: string | null;
+  activeRepoFolder: string | null;
   loadProjects: () => Promise<void>;
   createProject: (name: string, templateId: string) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   setActiveProject: (id: string | null) => void;
+  setActiveFolder: (id: string | null) => void;
+  setActiveRepoFolder: (folder: string | null) => void;
+  pickProjectDirectory: (projectId: string) => Promise<void>;
   addFolderToProject: (projectId: string, name: string, parentId: string | null) => Promise<void>;
   removeFolderFromProject: (projectId: string, folderId: string) => Promise<void>;
-  saveSlideToProject: (projectId: string, slide: Omit<SavedSlide, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  saveSlideToProject: (
+    projectId: string,
+    slide: Omit<SavedSlide, "id" | "createdAt" | "updatedAt">,
+  ) => Promise<SavedSlide | undefined>;
   removeSlideFromProject: (projectId: string, slideId: string) => Promise<void>;
   updateSlideInProject: (projectId: string, slideId: string, patch: Partial<SavedSlide>) => Promise<void>;
+  moveSlideInProject: (projectId: string, slideId: string, folderId: string | null) => Promise<void>;
+  loadProjectSlideIntoActive: (projectId: string, slideId: string, slideIndex?: number) => void;
 
   // ── Onboarding ───────────────────────────────────────────
   onboardingDone: boolean;
@@ -237,6 +257,61 @@ function updateTemplateLayoutOverrides(
     parserVersion: PPTX_PARSER_VERSION,
     layoutSlotOverrides: updatedLayoutSlotOverrides,
   };
+}
+
+function readStoredId(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(key) || null;
+}
+
+function writeStoredId(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  if (value) {
+    localStorage.setItem(key, value);
+  } else {
+    localStorage.removeItem(key);
+  }
+}
+
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    directoryHandle: project.directoryHandle ?? null,
+    directoryName:
+      project.directoryName ?? project.directoryHandle?.name ?? null,
+  };
+}
+
+function collectFolderIds(
+  folders: ProjectFolder[],
+  folderId: string | null,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!folderId) return ids;
+  const queue = [folderId];
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    if (!currentId || ids.has(currentId)) continue;
+    ids.add(currentId);
+    folders
+      .filter((folder) => folder.parentId === currentId)
+      .forEach((folder) => queue.push(folder.id));
+  }
+  return ids;
+}
+
+export function getProjectSlidesForFolder(
+  project: Project | undefined,
+  folderId: string | null,
+): SavedSlide[] {
+  if (!project) return [];
+  if (!folderId) {
+    return [...project.slides].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  const allowedIds = collectFolderIds(project.folders, folderId);
+  return project.slides
+    .filter((slide) => slide.folderId !== null && allowedIds.has(slide.folderId))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export const useSlideStore = create<SlideForgeStore>((set, get) => ({
@@ -527,6 +602,8 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
             ...s,
             codeSlideId: codeSlideId ?? undefined,
             codeSlotMapping: mapping,
+            projectSlideId: undefined,
+            projectSlideName: undefined,
           }
         : s,
     );
@@ -701,11 +778,39 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   // ── Projects ─────────────────────────────────────────────
   projects: [],
   activeProjectId: null,
+  activeFolderId: null,
+  activeRepoFolder: readStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY),
 
   loadProjects: async () => {
     try {
-      const projs = await listProjects();
-      set({ projects: projs });
+      const projs = (await listProjects()).map(normalizeProject);
+      const storedProjectId = readStoredId(ACTIVE_PROJECT_STORAGE_KEY);
+      const nextActiveProjectId =
+        (storedProjectId && projs.some((project) => project.id === storedProjectId)
+          ? storedProjectId
+          : projs[0]?.id) ?? null;
+      const activeProject = projs.find((project) => project.id === nextActiveProjectId);
+      const storedFolderId = readStoredId(ACTIVE_FOLDER_STORAGE_KEY);
+      const nextActiveFolderId =
+        activeProject && storedFolderId
+          ? activeProject.folders.some((folder) => folder.id === storedFolderId)
+            ? storedFolderId
+            : null
+          : null;
+      const nextActiveRepoFolder =
+        nextActiveProjectId === null
+          ? readStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY)
+          : null;
+
+      writeStoredId(ACTIVE_PROJECT_STORAGE_KEY, nextActiveProjectId);
+      writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, nextActiveFolderId);
+      writeStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY, nextActiveRepoFolder);
+      set({
+        projects: projs,
+        activeProjectId: nextActiveProjectId,
+        activeFolderId: nextActiveFolderId,
+        activeRepoFolder: nextActiveRepoFolder,
+      });
     } catch (err) {
       console.warn("[store] loadProjects failed:", err);
     }
@@ -718,29 +823,113 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       templateId,
       folders: [],
       slides: [],
+      directoryHandle: null,
+      directoryName: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     await saveProjectToDb(proj);
-    set({ projects: [...get().projects, proj], activeProjectId: proj.id });
+    writeStoredId(ACTIVE_PROJECT_STORAGE_KEY, proj.id);
+    writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, null);
+    writeStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY, null);
+    set({
+      projects: [...get().projects, proj],
+      activeProjectId: proj.id,
+      activeFolderId: null,
+      activeRepoFolder: null,
+    });
     return proj;
   },
 
   deleteProject: async (id) => {
     await deleteProjectFromDb(id);
     const next = get().projects.filter((p) => p.id !== id);
-    set({ projects: next });
-    if (get().activeProjectId === id) set({ activeProjectId: null });
+    const nextActiveProjectId =
+      get().activeProjectId === id ? (next[0]?.id ?? null) : get().activeProjectId;
+    const nextActiveProject = next.find((project) => project.id === nextActiveProjectId);
+    const currentFolderId = get().activeFolderId;
+    const nextActiveFolderId =
+      nextActiveProject && currentFolderId
+        ? nextActiveProject.folders.some((folder) => folder.id === currentFolderId)
+          ? currentFolderId
+          : null
+        : null;
+    const nextActiveRepoFolder =
+      nextActiveProjectId === null
+        ? readStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY)
+        : null;
+    writeStoredId(ACTIVE_PROJECT_STORAGE_KEY, nextActiveProjectId);
+    writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, nextActiveFolderId);
+    writeStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY, nextActiveRepoFolder);
+    set({
+      projects: next,
+      activeProjectId: nextActiveProjectId,
+      activeFolderId: nextActiveFolderId,
+      activeRepoFolder: nextActiveRepoFolder,
+    });
+    if (get().activeProjectId === id) {
+      const project = next.find((entry) => entry.id === nextActiveProjectId);
+      if (project?.templateId) {
+        get().setActiveTemplate(project.templateId);
+      }
+    }
   },
 
-  setActiveProject: (id) => set({ activeProjectId: id }),
+  setActiveProject: (id) => {
+    const project = get().projects.find((entry) => entry.id === id);
+    if (project?.templateId) {
+      get().setActiveTemplate(project.templateId);
+    }
+    writeStoredId(ACTIVE_PROJECT_STORAGE_KEY, id);
+    writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, null);
+    writeStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY, null);
+    set({ activeProjectId: id, activeFolderId: null, activeRepoFolder: null });
+  },
+
+  setActiveFolder: (id) => {
+    writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, id);
+    set({ activeFolderId: id });
+  },
+
+  setActiveRepoFolder: (folder) => {
+    writeStoredId(ACTIVE_REPO_FOLDER_STORAGE_KEY, folder);
+    writeStoredId(ACTIVE_PROJECT_STORAGE_KEY, null);
+    writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, null);
+    set({
+      activeRepoFolder: folder,
+      activeProjectId: null,
+      activeFolderId: null,
+    });
+  },
+
+  pickProjectDirectory: async (projectId) => {
+    const project = get().projects.find((entry) => entry.id === projectId);
+    if (!project) return;
+    const directoryHandle = await pickProjectDirectoryHandle();
+    const updated = normalizeProject({
+      ...project,
+      directoryHandle,
+      directoryName: directoryHandle.name,
+      updatedAt: Date.now(),
+    });
+    await saveProjectToDb(updated);
+    set({
+      projects: get().projects.map((entry) =>
+        entry.id === projectId ? updated : entry,
+      ),
+    });
+  },
 
   addFolderToProject: async (projectId, name, parentId) => {
     const projs = get().projects;
     const proj = projs.find((p) => p.id === projectId);
     if (!proj) return;
     const folder: ProjectFolder = { id: uid(), name, parentId };
-    const updated = { ...proj, folders: [...proj.folders, folder], updatedAt: Date.now() };
+    const updated = normalizeProject({
+      ...proj,
+      folders: [...proj.folders, folder],
+      updatedAt: Date.now(),
+    });
     await saveProjectToDb(updated);
     set({ projects: projs.map((p) => (p.id === projectId ? updated : p)) });
   },
@@ -756,41 +945,69 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       proj.folders.filter((f) => f.parentId === id).forEach((f) => collect(f.id));
     };
     collect(folderId);
-    const updated = {
+    const removedSlides = proj.slides.filter(
+      (slide) => slide.folderId !== null && idsToRemove.has(slide.folderId),
+    );
+    const updated = normalizeProject({
       ...proj,
       folders: proj.folders.filter((f) => !idsToRemove.has(f.id)),
       slides: proj.slides.filter((s) => !s.folderId || !idsToRemove.has(s.folderId)),
       updatedAt: Date.now(),
-    };
+    });
+    if (proj.directoryHandle) {
+      for (const slide of removedSlides) {
+        await deleteProjectSlideFile(proj, slide);
+      }
+    }
     await saveProjectToDb(updated);
     set({ projects: projs.map((p) => (p.id === projectId ? updated : p)) });
+    if (get().activeProjectId === projectId && idsToRemove.has(get().activeFolderId ?? "")) {
+      writeStoredId(ACTIVE_FOLDER_STORAGE_KEY, null);
+      set({ activeFolderId: null });
+    }
   },
 
   saveSlideToProject: async (projectId, slideData) => {
     const projs = get().projects;
     const proj = projs.find((p) => p.id === projectId);
-    if (!proj) return;
+    if (!proj) return undefined;
     const slide: SavedSlide = {
       ...slideData,
       id: uid(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    const updated = { ...proj, slides: [...proj.slides, slide], updatedAt: Date.now() };
+    const fileSync = slide.reactCode
+      ? await syncProjectSlideFile(proj, null, slide)
+      : null;
+    if (fileSync) {
+      slide.fileName = fileSync.fileName;
+      slide.relativePath = fileSync.relativePath;
+    }
+    const updated = normalizeProject({
+      ...proj,
+      slides: [...proj.slides, slide],
+      updatedAt: Date.now(),
+    });
     await saveProjectToDb(updated);
     set({ projects: projs.map((p) => (p.id === projectId ? updated : p)) });
     get().showToast("Folie gespeichert");
+    return slide;
   },
 
   removeSlideFromProject: async (projectId, slideId) => {
     const projs = get().projects;
     const proj = projs.find((p) => p.id === projectId);
     if (!proj) return;
-    const updated = {
+    const slide = proj.slides.find((entry) => entry.id === slideId);
+    if (slide && proj.directoryHandle) {
+      await deleteProjectSlideFile(proj, slide);
+    }
+    const updated = normalizeProject({
       ...proj,
       slides: proj.slides.filter((s) => s.id !== slideId),
       updatedAt: Date.now(),
-    };
+    });
     await saveProjectToDb(updated);
     set({ projects: projs.map((p) => (p.id === projectId ? updated : p)) });
   },
@@ -799,15 +1016,65 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     const projs = get().projects;
     const proj = projs.find((p) => p.id === projectId);
     if (!proj) return;
-    const updated = {
-      ...proj,
-      slides: proj.slides.map((s) =>
-        s.id === slideId ? { ...s, ...patch, updatedAt: Date.now() } : s,
-      ),
+    const currentSlide = proj.slides.find((slide) => slide.id === slideId);
+    if (!currentSlide) return;
+    const nextSlide: SavedSlide = {
+      ...currentSlide,
+      ...patch,
       updatedAt: Date.now(),
     };
+    const fileSync = nextSlide.reactCode
+      ? await syncProjectSlideFile(proj, currentSlide, nextSlide)
+      : null;
+    if (fileSync) {
+      nextSlide.fileName = fileSync.fileName;
+      nextSlide.relativePath = fileSync.relativePath;
+    }
+    const updated = normalizeProject({
+      ...proj,
+      slides: proj.slides.map((slide) =>
+        slide.id === slideId ? nextSlide : slide,
+      ),
+      updatedAt: Date.now(),
+    });
     await saveProjectToDb(updated);
     set({ projects: projs.map((p) => (p.id === projectId ? updated : p)) });
+  },
+
+  moveSlideInProject: async (projectId, slideId, folderId) => {
+    await get().updateSlideInProject(projectId, slideId, { folderId });
+  },
+
+  loadProjectSlideIntoActive: (projectId, slideId, slideIndex) => {
+    const { projects, slides, activeSlideIndex } = get();
+    const project = projects.find((entry) => entry.id === projectId);
+    const projectSlide = project?.slides.find((entry) => entry.id === slideId);
+    const targetIndex = slideIndex ?? activeSlideIndex;
+    if (!project || !projectSlide || !slides[targetIndex]) return;
+
+    const nextSlides = slides.map((slide, index) =>
+      index === targetIndex
+        ? {
+            ...slide,
+            masterId: projectSlide.masterId,
+            layoutId: projectSlide.layoutId,
+            content: { ...projectSlide.content },
+            projectSlideId: projectSlide.id,
+            projectSlideName: projectSlide.name,
+            codeSlideId: undefined,
+            codeSlotMapping: undefined,
+            hiddenPlaceholderIdxs: undefined,
+          }
+        : slide,
+    );
+
+    set({
+      slides: nextSlides,
+      activeSlideIndex: targetIndex,
+      activeMasterId: projectSlide.masterId,
+      selectedElementIds: [],
+      canvasZoom: 1,
+    });
   },
 
   // ── Onboarding ───────────────────────────────────────────

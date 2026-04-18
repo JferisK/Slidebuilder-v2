@@ -122,7 +122,6 @@ export const SlideCanvas: React.FC = () => {
         }}
       >
         <div
-          id="slide-canvas-export"
           data-slide-index={activeSlideIndex}
           data-slide-id={slideId}
           data-code-slide-id={activeSlide.codeSlideId ?? ""}
@@ -168,6 +167,35 @@ export const SlideCanvas: React.FC = () => {
             />
           </div>
         </div>
+      </div>
+      <div
+        id="slide-canvas-export"
+        data-slide-index={activeSlideIndex}
+        data-slide-id={slideId}
+        data-code-slide-id={activeSlide.codeSlideId ?? ""}
+        style={{
+          position: "fixed",
+          left: -10000,
+          top: 0,
+          width: SLIDE_W,
+          height: SLIDE_H,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        <DynamicSlide
+          layout={activeLayout}
+          theme={activeMaster.theme}
+          slideSize={slideSize}
+          content={activeSlide.content}
+          isExporting={true}
+          showPlaceholderOutlines={false}
+          slideId={slideId}
+          slideOrdinal={slideOrdinal}
+          selectedElementIds={selectedElementIds}
+          codeSlots={codeSlotsByIdx}
+          hiddenPlaceholderIdxs={hiddenIdxSet}
+        />
       </div>
     </div>
   );

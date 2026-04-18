@@ -2,11 +2,22 @@ import type { CodeSlide } from "./types";
 import DoraPamCisoSlide from "./dora-pam/DoraPamCisoSlide";
 import * as T from "./templates";
 
+export interface RegisteredCodeSlide extends CodeSlide {
+  sourceFolder: string;
+  kind: "production" | "template";
+}
+
 /**
  * Production code-slides — those that carry real, presentation-ready
  * content. Shown in the "Folienauswahl" dropdown.
  */
-export const codeSlides: CodeSlide[] = [DoraPamCisoSlide];
+export const codeSlides: RegisteredCodeSlide[] = [
+  {
+    ...DoraPamCisoSlide,
+    sourceFolder: "dora-pam",
+    kind: "production",
+  },
+];
 
 /**
  * Wireframe templates — 25 proven information-design patterns rendered as
@@ -14,7 +25,7 @@ export const codeSlides: CodeSlide[] = [DoraPamCisoSlide];
  * dropdown. They are not meant to carry final content; they exist as
  * inspiration for the user and as concrete layout examples for the LLM.
  */
-export const slideTemplates: CodeSlide[] = [
+export const slideTemplates: RegisteredCodeSlide[] = [
   T.ExecutiveMessageFirst,
   T.KpiHeroLeft,
   T.BinaryContrast,
@@ -40,7 +51,11 @@ export const slideTemplates: CodeSlide[] = [
   T.HeatmapGap,
   T.PyramidHierarchy,
   T.AppendixSourceGrid,
-];
+].map((slide) => ({
+  ...slide,
+  sourceFolder: "templates",
+  kind: "template",
+}));
 
 /**
  * Looks up any code-slide by id — searches production slides first, then
@@ -58,4 +73,19 @@ export function getCodeSlide(id: string | null | undefined) {
 export function isTemplateId(id: string | null | undefined) {
   if (!id) return false;
   return slideTemplates.some((s) => s.id === id);
+}
+
+export function getCodeSlidesForRepoFolder(folder: string | null | undefined) {
+  if (!folder) return [];
+  return codeSlides.filter((slide) => slide.sourceFolder === folder);
+}
+
+export function getSlideTemplatesForRepoFolder(folder: string | null | undefined) {
+  if (!folder) return [];
+  return slideTemplates.filter((slide) => slide.sourceFolder === folder);
+}
+
+export function getRegisteredSlidesForRepoFolder(folder: string | null | undefined) {
+  if (!folder) return [];
+  return [...getCodeSlidesForRepoFolder(folder), ...getSlideTemplatesForRepoFolder(folder)];
 }

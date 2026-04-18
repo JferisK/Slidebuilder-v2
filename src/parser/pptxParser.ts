@@ -2,7 +2,7 @@ import JSZip from "jszip";
 
 // ---------- Types -----------------------------------------------------------
 
-export const PPTX_PARSER_VERSION = 2;
+export const PPTX_PARSER_VERSION = 3;
 
 export interface ParsedPresentation {
   masters: SlideMaster[];
@@ -27,6 +27,20 @@ export interface SlideTheme {
     "--slide-font-heading": string;
     "--slide-font-body": string;
   };
+  palette: ThemeColorFamily[];
+}
+
+export interface ThemeColorVariant {
+  label: string;
+  color: string;
+  derived?: boolean;
+}
+
+export interface ThemeColorFamily {
+  key: string;
+  label: string;
+  color: string;
+  variants: ThemeColorVariant[];
 }
 
 export interface SlideSize {
@@ -97,6 +111,54 @@ const FALLBACK_THEME: SlideTheme = {
     "--slide-font-heading": "Calibri, sans-serif",
     "--slide-font-body": "Calibri, sans-serif",
   },
+  palette: [],
+};
+
+const THEME_COLOR_ORDER = [
+  "lt1",
+  "dk1",
+  "lt2",
+  "dk2",
+  "accent1",
+  "accent2",
+  "accent3",
+  "accent4",
+  "accent5",
+  "accent6",
+  "hlink",
+  "folHlink",
+] as const;
+
+type ThemeColorKey = (typeof THEME_COLOR_ORDER)[number];
+
+const THEME_COLOR_LABELS: Record<ThemeColorKey, string> = {
+  lt1: "Hintergrund 1",
+  dk1: "Text 1",
+  lt2: "Hintergrund 2",
+  dk2: "Text 2",
+  accent1: "Akzent 1",
+  accent2: "Akzent 2",
+  accent3: "Akzent 3",
+  accent4: "Akzent 4",
+  accent5: "Akzent 5",
+  accent6: "Akzent 6",
+  hlink: "Hyperlink",
+  folHlink: "Besuchter Link",
+};
+
+const FALLBACK_THEME_COLORS: Record<ThemeColorKey, string> = {
+  lt1: "#ffffff",
+  dk1: "#1a1a1a",
+  lt2: "#f2f2f2",
+  dk2: "#666666",
+  accent1: "#1f4e79",
+  accent2: "#c00000",
+  accent3: "#5b9bd5",
+  accent4: "#70ad47",
+  accent5: "#ed7d31",
+  accent6: "#7030a0",
+  hlink: "#0563c1",
+  folHlink: "#954f72",
 };
 
 // ---------- Helpers ---------------------------------------------------------
@@ -142,6 +204,52 @@ function blendHex(fg: string, bg: string, alpha: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
 }
 
+function buildPowerPointVariants(color: string): ThemeColorVariant[] {
+  return [
+    {
+      label: "Heller 80%",
+      color: blendHex(color, "#ffffff", 0.2),
+      derived: true,
+    },
+    {
+      label: "Heller 60%",
+      color: blendHex(color, "#ffffff", 0.4),
+      derived: true,
+    },
+    {
+      label: "Heller 40%",
+      color: blendHex(color, "#ffffff", 0.6),
+      derived: true,
+    },
+    {
+      label: "Dunkler 25%",
+      color: blendHex(color, "#000000", 0.75),
+      derived: true,
+    },
+    {
+      label: "Dunkler 50%",
+      color: blendHex(color, "#000000", 0.5),
+      derived: true,
+    },
+  ];
+}
+
+function buildThemePalette(
+  colors: Partial<Record<ThemeColorKey, string>>,
+): ThemeColorFamily[] {
+  return THEME_COLOR_ORDER.map((key) => {
+    const color = colors[key] ?? FALLBACK_THEME_COLORS[key];
+    return {
+      key,
+      label: THEME_COLOR_LABELS[key],
+      color,
+      variants: buildPowerPointVariants(color),
+    };
+  });
+}
+
+FALLBACK_THEME.palette = buildThemePalette(FALLBACK_THEME_COLORS);
+
 function resolveFont(
   typeface: string | null | undefined,
   fallback = "Calibri, sans-serif",
@@ -179,15 +287,18 @@ function parseThemeFromDoc(doc: Document): SlideTheme {
   try {
     const clrScheme = doc.getElementsByTagNameNS("*", "clrScheme")[0];
     if (clrScheme) {
-      const pickColor = (tag: string): string | null => {
+      const pickColor = (tag: ThemeColorKey): string | null => {
         const el = clrScheme.getElementsByTagNameNS("*", tag)[0];
         return hexFromSrgbClr(el ?? null);
       };
-      const dk1 = pickColor("dk1");
-      const lt1 = pickColor("lt1");
-      const lt2 = pickColor("lt2");
-      const accent1 = pickColor("accent1");
-      const accent2 = pickColor("accent2");
+      const parsedColors = Object.fromEntries(
+        THEME_COLOR_ORDER.map((key) => [key, pickColor(key)]),
+      ) as Partial<Record<ThemeColorKey, string | null>>;
+      const dk1 = parsedColors.dk1 ?? null;
+      const lt1 = parsedColors.lt1 ?? null;
+      const lt2 = parsedColors.lt2 ?? null;
+      const accent1 = parsedColors.accent1 ?? null;
+      const accent2 = parsedColors.accent2 ?? null;
 
       if (dk1) theme.cssVars["--slide-text"] = dk1;
       if (lt1) theme.cssVars["--slide-bg"] = lt1;
@@ -199,8 +310,17 @@ function parseThemeFromDoc(doc: Document): SlideTheme {
         const bg = lt1 ?? "#ffffff";
         theme.cssVars["--slide-text-muted"] = blendHex(dk1, bg, 0.6);
       }
+      theme.palette = buildThemePalette(
+        Object.fromEntries(
+          THEME_COLOR_ORDER.map((key) => [
+            key,
+            parsedColors[key] ?? FALLBACK_THEME_COLORS[key],
+          ]),
+        ) as Partial<Record<ThemeColorKey, string>>,
+      );
     } else {
       console.warn("[pptxParser] No clrScheme found in theme");
+      theme.palette = buildThemePalette(FALLBACK_THEME_COLORS);
     }
 
     const fontScheme = doc.getElementsByTagNameNS("*", "fontScheme")[0];
@@ -221,11 +341,20 @@ function parseThemeFromDoc(doc: Document): SlideTheme {
   } catch (err) {
     console.warn("[pptxParser] Theme parse error:", err);
   }
+  if (theme.palette.length === 0) {
+    theme.palette = buildThemePalette(FALLBACK_THEME_COLORS);
+  }
   return theme;
 }
 
 function structuredCloneTheme(t: SlideTheme): SlideTheme {
-  return { cssVars: { ...t.cssVars } };
+  return {
+    cssVars: { ...t.cssVars },
+    palette: t.palette.map((entry) => ({
+      ...entry,
+      variants: entry.variants.map((variant) => ({ ...variant })),
+    })),
+  };
 }
 
 // ---------- Layout parsing --------------------------------------------------

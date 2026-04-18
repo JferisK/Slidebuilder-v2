@@ -3,14 +3,12 @@ import { Code2, Copy, Check } from "lucide-react";
 import {
   useActiveLayout,
   useActiveMaster,
+  useActiveProject,
   useActiveSlide,
   useSlideStore,
-  useActiveProject,
 } from "@/store/slideStore";
-import {
-  generateSlideCode,
-  suggestFilePath,
-} from "@/lib/codeGenerator";
+import { generateSlideCode, suggestFilePath } from "@/lib/codeGenerator";
+import { getProjectSlideRelativePath } from "@/lib/projectFileSystem";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -19,18 +17,32 @@ export const CodeExportButton: React.FC = () => {
   const activeLayout = useActiveLayout();
   const activeSlide = useActiveSlide();
   const activeProject = useActiveProject();
+  const activeFolderId = useSlideStore((s) => s.activeFolderId);
   const slideSize = useSlideStore((s) => s.presentation?.slideSize);
   const showToast = useSlideStore((s) => s.showToast);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const saveSlideToProject = useSlideStore((s) => s.saveSlideToProject);
+  const updateSlideInProject = useSlideStore((s) => s.updateSlideInProject);
+  const loadProjectSlideIntoActive = useSlideStore((s) => s.loadProjectSlideIntoActive);
 
   const [open, setOpen] = React.useState(false);
   const [componentName, setComponentName] = React.useState("");
   const [copied, setCopied] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+
+  const existingProjectSlide = React.useMemo(
+    () =>
+      activeProject?.slides.find((slide) => slide.id === activeSlide?.projectSlideId) ??
+      null,
+    [activeProject, activeSlide?.projectSlideId],
+  );
 
   React.useEffect(() => {
-    setComponentName(`Slide${activeSlideIndex + 1}`);
-  }, [activeSlideIndex]);
+    setComponentName(
+      activeSlide?.projectSlideName ??
+        `Slide${activeSlideIndex + 1}`,
+    );
+  }, [activeSlide?.projectSlideName, activeSlideIndex]);
 
   if (!activeMaster || !activeLayout || !activeSlide) return null;
 
@@ -42,20 +54,25 @@ export const CodeExportButton: React.FC = () => {
     content: activeSlide.content,
   });
 
-  const filePath = suggestFilePath(
-    activeProject?.name ?? "default",
-    "",
-    componentName || `Slide${activeSlideIndex + 1}`,
-  );
+  const filePath = activeProject
+    ? getProjectSlideRelativePath(activeProject, {
+        folderId: activeFolderId,
+        name: componentName || `Slide${activeSlideIndex + 1}`,
+      })
+    : suggestFilePath(
+        "default",
+        "",
+        componentName || `Slide${activeSlideIndex + 1}`,
+      );
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      showToast("✅ React-Code kopiert");
+      showToast("React-Code kopiert");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      showToast("⚠️ Clipboard nicht verfügbar", "error");
+      showToast("Clipboard nicht verfügbar", "error");
     }
   };
 
@@ -64,14 +81,37 @@ export const CodeExportButton: React.FC = () => {
       showToast("Kein Projekt ausgewählt", "info");
       return;
     }
-    await saveSlideToProject(activeProject.id, {
-      folderId: null,
-      name: componentName || `Slide${activeSlideIndex + 1}`,
+    const name = componentName.trim() || `Slide${activeSlideIndex + 1}`;
+    const payload = {
+      folderId: activeFolderId,
+      name,
       masterId: activeSlide.masterId,
       layoutId: activeSlide.layoutId,
       content: activeSlide.content,
       reactCode: code,
-    });
+    };
+
+    setBusy(true);
+    try {
+      if (existingProjectSlide) {
+        await updateSlideInProject(activeProject.id, existingProjectSlide.id, payload);
+        loadProjectSlideIntoActive(activeProject.id, existingProjectSlide.id);
+        showToast("Projektfolie aktualisiert");
+      } else {
+        const savedSlide = await saveSlideToProject(activeProject.id, payload);
+        if (savedSlide) {
+          loadProjectSlideIntoActive(activeProject.id, savedSlide.id);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(
+        err instanceof Error ? err.message : "Projektfolie konnte nicht gespeichert werden",
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!open) {
@@ -82,7 +122,7 @@ export const CodeExportButton: React.FC = () => {
         onClick={() => setOpen(true)}
         className="w-full"
       >
-        <Code2 size={13} /> Als React-Komponente
+        <Code2 size={13} /> React-Komponente
       </Button>
     );
   }
@@ -117,7 +157,7 @@ export const CodeExportButton: React.FC = () => {
         className="text-[10px] text-[var(--app-muted)]"
         style={{ wordBreak: "break-all" }}
       >
-        📁 {filePath}
+        {activeProject ? `Projektpfad: ${filePath}` : `Vorschlag: ${filePath}`}
       </div>
 
       <pre
@@ -141,10 +181,15 @@ export const CodeExportButton: React.FC = () => {
         {activeProject && (
           <Button
             size="sm"
-            onClick={handleSaveToProject}
+            onClick={() => void handleSaveToProject()}
             className="flex-1"
+            disabled={busy}
           >
-            Im Projekt speichern
+            {busy
+              ? "Speichere…"
+              : existingProjectSlide
+                ? "Im Projekt aktualisieren"
+                : "Im Projekt speichern"}
           </Button>
         )}
       </div>

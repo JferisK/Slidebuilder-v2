@@ -6,7 +6,6 @@ import { getRenderSlideSize } from "@/lib/slideSize";
 import { Button } from "./ui/button";
 
 export const ExportButton: React.FC = () => {
-  const setAnnotationsVisible = useSlideStore((s) => s.setAnnotationsVisible);
   const showToast = useSlideStore((s) => s.showToast);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const slideSize = useSlideStore((s) => s.presentation?.slideSize);
@@ -25,12 +24,6 @@ export const ExportButton: React.FC = () => {
       return;
     }
     setBusy(true);
-    setAnnotationsVisible(false);
-
-    const previousTransform = el.style.transform;
-    el.style.transform = "none";
-
-    // Give React a tick to commit the visibility change before capture
     await new Promise((r) => requestAnimationFrame(() => r(null)));
 
     try {
@@ -62,8 +55,6 @@ export const ExportButton: React.FC = () => {
       console.error("Export failed:", err);
       showToast("⚠️ Export fehlgeschlagen", "error");
     } finally {
-      el.style.transform = previousTransform;
-      setAnnotationsVisible(true);
       setBusy(false);
     }
   };

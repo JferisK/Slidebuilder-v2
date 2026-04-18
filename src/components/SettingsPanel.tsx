@@ -3,14 +3,15 @@ import {
   Trash2,
   Upload,
   HelpCircle,
-  Code2,
   Eye,
   EyeOff,
   ChevronDown,
 } from "lucide-react";
 import {
+  getProjectSlidesForFolder,
   useActiveLayout,
   useActiveMaster,
+  useActiveProject,
   useActiveSlide,
   useSlideStore,
 } from "@/store/slideStore";
@@ -19,10 +20,13 @@ import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
+import { CodeExportButton } from "./CodeExportButton";
 import {
-  codeSlides,
+  getCodeSlidesForRepoFolder,
+  getRegisteredSlidesForRepoFolder,
   slideTemplates,
   getCodeSlide,
+  getSlideTemplatesForRepoFolder,
   isTemplateId,
 } from "@/slides/registry";
 import type { Placeholder } from "@/parser/pptxParser";
@@ -205,11 +209,54 @@ const Swatch: React.FC<{ color: string; label: string }> = ({
   </div>
 );
 
+const PaletteFamily: React.FC<{
+  label: string;
+  color: string;
+  variants: Array<{ label: string; color: string }>;
+}> = ({ label, color, variants }) => (
+  <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+    <div className="mb-2 flex items-center gap-2">
+      <span
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: 4,
+          background: color,
+          border: "1px solid rgba(255,255,255,0.1)",
+          flexShrink: 0,
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[10px] text-[var(--app-text)]">{label}</div>
+        <div className="font-mono text-[9px] text-[var(--app-muted)]">{color}</div>
+      </div>
+    </div>
+    <div className="grid grid-cols-5 gap-1">
+      {variants.map((variant) => (
+        <div key={`${label}-${variant.label}`} title={`${variant.label}: ${variant.color}`}>
+          <div
+            style={{
+              height: 22,
+              borderRadius: 4,
+              background: variant.color,
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          />
+          <div className="mt-1 text-[8px] leading-tight text-[var(--app-muted)]">
+            {variant.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export const SettingsPanel: React.FC = () => {
   const presentation = useSlideStore((s) => s.presentation);
   const activeMaster = useActiveMaster();
   const activeSlide = useActiveSlide();
   const activeLayout = useActiveLayout();
+  const activeProject = useActiveProject();
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const setActiveMaster = useSlideStore((s) => s.setActiveMaster);
   const setLayoutForSlide = useSlideStore((s) => s.setLayoutForSlide);
@@ -221,6 +268,11 @@ export const SettingsPanel: React.FC = () => {
   const showToast = useSlideStore((s) => s.showToast);
   const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
   const setCodeSlideForSlide = useSlideStore((s) => s.setCodeSlideForSlide);
+  const loadProjectSlideIntoActive = useSlideStore(
+    (s) => s.loadProjectSlideIntoActive,
+  );
+  const activeFolderId = useSlideStore((s) => s.activeFolderId);
+  const activeRepoFolder = useSlideStore((s) => s.activeRepoFolder);
   const setCodeSlotMapping = useSlideStore((s) => s.setCodeSlotMapping);
   const clearLayoutSlotOverrides = useSlideStore(
     (s) => s.clearLayoutSlotOverrides,
@@ -228,7 +280,6 @@ export const SettingsPanel: React.FC = () => {
   const togglePlaceholderHidden = useSlideStore(
     (s) => s.togglePlaceholderHidden,
   );
-  const addSlide = useSlideStore((s) => s.addSlide);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -254,13 +305,51 @@ export const SettingsPanel: React.FC = () => {
   const activeCodeSlide = getCodeSlide(activeSlide.codeSlideId);
   const activeIsTemplate = isTemplateId(activeSlide.codeSlideId);
   const codeSlotMapping = activeSlide.codeSlotMapping ?? {};
-  const codeSlideOptions = [
-    { value: "__none__", label: "— Keine (nur Platzhalter-Text)" },
-    ...codeSlides.map((cs) => ({ value: cs.id, label: cs.name })),
-  ];
+  const repoCodeSlides = React.useMemo(
+    () => getCodeSlidesForRepoFolder(activeRepoFolder),
+    [activeRepoFolder],
+  );
+  const repoFolderSlides = React.useMemo(
+    () => getRegisteredSlidesForRepoFolder(activeRepoFolder),
+    [activeRepoFolder],
+  );
+  const repoTemplateSlides = React.useMemo(
+    () => getSlideTemplatesForRepoFolder(activeRepoFolder),
+    [activeRepoFolder],
+  );
+  const projectSlides = React.useMemo(
+    () => getProjectSlidesForFolder(activeProject, activeFolderId),
+    [activeFolderId, activeProject],
+  );
+  const activeProjectSlideId =
+    projectSlides.some((slide) => slide.id === activeSlide.projectSlideId)
+      ? activeSlide.projectSlideId
+      : undefined;
+  const activeRepoCodeSlideId =
+    repoFolderSlides.some((slide) => slide.id === activeSlide.codeSlideId)
+      ? activeSlide.codeSlideId
+      : undefined;
+  const projectSlideOptions = activeProject
+    ? [
+        { value: "__none__", label: "— Keine gespeicherte Folie" },
+        ...projectSlides.map((slide) => ({
+          value: slide.id,
+          label: slide.name,
+        })),
+      ]
+    : [
+        { value: "__none__", label: "— Keine Repo-Folie" },
+        ...repoFolderSlides.map((slide) => ({
+          value: slide.id,
+          label: slide.name,
+        })),
+      ];
   const slideTemplateOptions = [
     { value: "__none__", label: "— Keine Vorlage" },
-    ...slideTemplates.map((cs) => ({ value: cs.id, label: cs.name })),
+    ...(activeProject ? slideTemplates : repoTemplateSlides).map((cs) => ({
+      value: cs.id,
+      label: cs.name,
+    })),
   ];
 
   const masterOptions = presentation.masters.map((m) => ({
@@ -285,6 +374,14 @@ export const SettingsPanel: React.FC = () => {
   );
 
   const theme = activeMaster.theme.cssVars;
+  const palette = activeMaster.theme.palette ?? [];
+  const basePalette = palette.filter((entry) =>
+    ["lt1", "dk1", "lt2", "dk2"].includes(entry.key),
+  );
+  const accentPalette = palette.filter((entry) => entry.key.startsWith("accent"));
+  const linkPalette = palette.filter((entry) =>
+    ["hlink", "folHlink"].includes(entry.key),
+  );
 
   return (
     <aside
@@ -375,42 +472,43 @@ export const SettingsPanel: React.FC = () => {
         <div>
           <SectionLabel>Folienauswahl</SectionLabel>
           <Select
-            value={
-              activeIsTemplate ? "__none__" : activeSlide.codeSlideId ?? "__none__"
-            }
-            options={codeSlideOptions}
-            onValueChange={(v) =>
-              setCodeSlideForSlide(
-                activeSlideIndex,
-                v === "__none__" ? null : v,
-              )
-            }
+            value={(activeProject ? activeProjectSlideId : activeRepoCodeSlideId) ?? "__none__"}
+            options={projectSlideOptions}
+            disabled={!activeProject && !activeRepoFolder}
+            onValueChange={(v) => {
+              if (v === "__none__") {
+                setCodeSlideForSlide(activeSlideIndex, null);
+                return;
+              }
+              if (activeProject) {
+                loadProjectSlideIntoActive(activeProject.id, v);
+              } else {
+                setCodeSlideForSlide(activeSlideIndex, v);
+              }
+            }}
           />
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {activeCodeSlide && !activeIsTemplate
-              ? `Slots: ${Object.keys(activeCodeSlide.slots)
-                  .map((k) => `:${k}`)
-                  .join(", ")} — Layout + Master liefern Position & Theme.`
-              : "Echte React-Folien mit finalem Inhalt (z. B. title:0, body:1)."}
+            {!activeProject
+              ? activeRepoFolder
+                ? repoFolderSlides.length > 0
+                  ? `Repo-Ordner "${activeRepoFolder}" liefert ${repoFolderSlides.length} auswählbare Folie(n).`
+                  : `Repo-Ordner "${activeRepoFolder}" enthält keine auswählbaren Folien.`
+                : "Bitte zuerst ein Projekt oder einen Repo-Ordner auswählen."
+              : projectSlides.length > 0
+                ? activeFolderId
+                  ? "Es werden nur Slides aus dem gewählten Ordner und seinen Unterordnern angeboten."
+                  : "Es werden alle gespeicherten Slides des aktiven Projekts angeboten."
+                : "Im aktuellen Filterbereich sind noch keine gespeicherten Slides vorhanden."}
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              const first = codeSlides[0];
-              if (first) addSlide(first.id);
-            }}
-            className="mt-2 w-full"
-          >
-            <Code2 size={12} /> Neue Folie mit React-Inhalt
-          </Button>
         </div>
 
         <Separator />
 
         {/* Vorlagen / Ideenvorschläge */}
-        <div>
-          <SectionLabel>Vorlagen / Ideenvorschläge</SectionLabel>
+        <CollapsibleSection
+          label="Vorlagen / Ideenvorschläge"
+          defaultOpen={false}
+        >
           <Select
             value={
               activeIsTemplate ? activeSlide.codeSlideId ?? "__none__" : "__none__"
@@ -423,12 +521,14 @@ export const SettingsPanel: React.FC = () => {
               )
             }
           />
-          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {activeIsTemplate && activeCodeSlide
-              ? activeCodeSlide.description
-              : "Wireframe-Skizzen gängiger Slide-Muster — nur zur Inspiration, kein finaler Inhalt."}
-          </div>
-        </div>
+          {!activeProject && activeRepoFolder && (
+            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+              {repoTemplateSlides.length > 0
+                ? `Repo-Ordner "${activeRepoFolder}" liefert ${repoTemplateSlides.length} Vorlagen.`
+                : `Repo-Ordner "${activeRepoFolder}" enthält keine Vorlagen.`}
+            </div>
+          )}
+        </CollapsibleSection>
 
         <Separator />
 
@@ -482,13 +582,68 @@ export const SettingsPanel: React.FC = () => {
 
         {/* Farben (einklappbar) */}
         <CollapsibleSection label="Farben (aus Master)" defaultOpen={false}>
-          <div className="flex flex-col gap-1 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
-            <Swatch color={theme["--slide-bg"]} label="Hintergrund" />
-            <Swatch color={theme["--slide-primary"]} label="Primär" />
-            <Swatch color={theme["--slide-secondary"]} label="Sekundär" />
-            <Swatch color={theme["--slide-accent"]} label="Akzent" />
-            <Swatch color={theme["--slide-text"]} label="Text" />
-            <Swatch color={theme["--slide-text-muted"]} label="Text (gedämpft)" />
+          <div className="flex flex-col gap-2">
+            <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+              <div className="mb-2 text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+                Kernfarben
+              </div>
+              <div className="flex flex-col gap-1">
+                <Swatch color={theme["--slide-bg"]} label="Hintergrund" />
+                <Swatch color={theme["--slide-primary"]} label="Primär" />
+                <Swatch color={theme["--slide-secondary"]} label="Sekundär" />
+                <Swatch color={theme["--slide-accent"]} label="Akzent" />
+                <Swatch color={theme["--slide-text"]} label="Text" />
+                <Swatch
+                  color={theme["--slide-text-muted"]}
+                  label="Text (gedämpft)"
+                />
+              </div>
+            </div>
+            {basePalette.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+                  Theme-Basis
+                </div>
+                {basePalette.map((entry) => (
+                  <PaletteFamily
+                    key={entry.key}
+                    label={entry.label}
+                    color={entry.color}
+                    variants={entry.variants}
+                  />
+                ))}
+              </div>
+            )}
+            {accentPalette.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+                  Akzentfarben
+                </div>
+                {accentPalette.map((entry) => (
+                  <PaletteFamily
+                    key={entry.key}
+                    label={entry.label}
+                    color={entry.color}
+                    variants={entry.variants}
+                  />
+                ))}
+              </div>
+            )}
+            {linkPalette.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+                  Linkfarben
+                </div>
+                {linkPalette.map((entry) => (
+                  <PaletteFamily
+                    key={entry.key}
+                    label={entry.label}
+                    color={entry.color}
+                    variants={entry.variants}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
             Heading: {theme["--slide-font-heading"]?.split(",")[0]}
@@ -501,7 +656,10 @@ export const SettingsPanel: React.FC = () => {
         {/* Export */}
         <div>
           <SectionLabel>Export</SectionLabel>
-          <ExportButton />
+          <div className="flex flex-col gap-2">
+            <ExportButton />
+            <CodeExportButton />
+          </div>
         </div>
 
         <Separator />

@@ -16,6 +16,11 @@ const App: React.FC = () => {
   const onboardingDone = useSlideStore((s) => s.onboardingDone);
   const loadTemplates = useSlideStore((s) => s.loadTemplates);
   const loadProjects = useSlideStore((s) => s.loadProjects);
+  const templates = useSlideStore((s) => s.templates);
+  const activeTemplateId = useSlideStore((s) => s.activeTemplateId);
+  const projects = useSlideStore((s) => s.projects);
+  const activeProjectId = useSlideStore((s) => s.activeProjectId);
+  const setActiveTemplate = useSlideStore((s) => s.setActiveTemplate);
   const addTemplate = useSlideStore((s) => s.addTemplate);
   const setParsedPresentation = useSlideStore(
     (s) => s.setParsedPresentation,
@@ -27,6 +32,21 @@ const App: React.FC = () => {
     void loadTemplates();
     void loadProjects();
   }, [loadTemplates, loadProjects]);
+
+  React.useEffect(() => {
+    const activeProject = projects.find((project) => project.id === activeProjectId);
+    if (!activeProject) return;
+    if (activeTemplateId === activeProject.templateId) return;
+    if (templates.some((template) => template.id === activeProject.templateId)) {
+      setActiveTemplate(activeProject.templateId);
+    }
+  }, [
+    activeProjectId,
+    activeTemplateId,
+    projects,
+    setActiveTemplate,
+    templates,
+  ]);
 
   // Listen for additional upload events from SettingsPanel
   React.useEffect(() => {

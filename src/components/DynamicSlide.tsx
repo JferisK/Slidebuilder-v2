@@ -56,8 +56,18 @@ function getText(placeholder: Placeholder, content: Record<string, string>) {
 function renderPlaceholderContent(
   placeholder: Placeholder,
   content: Record<string, string>,
+  isExporting: boolean,
 ): React.ReactNode {
-  const text = getText(placeholder, content);
+  const rawValue = content[String(placeholder.idx)];
+  const text =
+    rawValue !== undefined && rawValue !== ""
+      ? rawValue
+      : isExporting
+        ? ""
+        : getText(placeholder, content);
+  if (isExporting && text.trim() === "") {
+    return null;
+  }
 
   switch (placeholder.type) {
     case "title":
@@ -246,7 +256,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                 <Slot />
               </div>
             ) : (
-              renderPlaceholderContent(placeholder, content)
+              renderPlaceholderContent(placeholder, content, isExporting)
             )}
             {!isExporting && showPlaceholderOutlines && (
               <span
