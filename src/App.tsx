@@ -1,5 +1,8 @@
 import * as React from "react";
-import { parsePptx } from "./parser/pptxParser";
+import {
+  PPTX_PARSER_VERSION,
+  parsePptx,
+} from "./parser/pptxParser";
 import { UploadScreen } from "./components/UploadScreen";
 import { SlideCanvas } from "./components/SlideCanvas";
 import { ZoomToolbar } from "./components/ZoomToolbar";
@@ -40,8 +43,10 @@ const App: React.FC = () => {
           name: file.name.replace(/\.pptx$/i, ""),
           fileName: file.name,
           uploadedAt: Date.now(),
+          parserVersion: PPTX_PARSER_VERSION,
           pptxData: arrayBuffer,
           parsed,
+          layoutSlotOverrides: {},
         };
         await addTemplate(tpl);
         setParsedPresentation(parsed);

@@ -37,6 +37,12 @@ const PLACEHOLDER_TYPE_LABELS: Record<string, string> = {
   sldNum: "Seitenzahl",
 };
 
+const PLACEHOLDER_SOURCE_LABELS: Record<string, string> = {
+  layout: "Layout",
+  master: "Master",
+  fallback: "Fallback",
+};
+
 const SLOT_NONE = "__none__";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
@@ -126,6 +132,9 @@ const PlaceholderList: React.FC<PlaceholderListProps> = ({
         const assignedSlotKey = codeSlide
           ? codeSlide.slots.find((s) => codeSlotMapping[s.key] === p.idx)?.key
           : undefined;
+        const sourceLabel = p.source
+          ? PLACEHOLDER_SOURCE_LABELS[p.source] ?? p.source
+          : null;
         return (
           <div
             key={`${p.idx}-${p.type}`}
@@ -138,6 +147,7 @@ const PlaceholderList: React.FC<PlaceholderListProps> = ({
               </div>
               <div className="font-mono text-[9px] text-[var(--app-muted)]">
                 {p.type}:{p.idx}
+                {sourceLabel ? ` · ${sourceLabel}` : ""}
               </div>
             </div>
             {slotOptions && (
@@ -212,6 +222,9 @@ export const SettingsPanel: React.FC = () => {
   const setOnboardingDone = useSlideStore((s) => s.setOnboardingDone);
   const setCodeSlideForSlide = useSlideStore((s) => s.setCodeSlideForSlide);
   const setCodeSlotMapping = useSlideStore((s) => s.setCodeSlotMapping);
+  const clearLayoutSlotOverrides = useSlideStore(
+    (s) => s.clearLayoutSlotOverrides,
+  );
   const togglePlaceholderHidden = useSlideStore(
     (s) => s.togglePlaceholderHidden,
   );
@@ -263,6 +276,13 @@ export const SettingsPanel: React.FC = () => {
     value: t.id,
     label: `${t.name}`,
   }));
+  const hasLayoutOverrides = Boolean(
+    activeTemplateId &&
+      activeLayout &&
+      templates.find((t) => t.id === activeTemplateId)?.layoutSlotOverrides?.[
+        activeLayout.id
+      ],
+  );
 
   const theme = activeMaster.theme.cssVars;
 
@@ -417,6 +437,21 @@ export const SettingsPanel: React.FC = () => {
           <CollapsibleSection
             label={`Bereiche (${activeLayout.placeholders.length})`}
           >
+            {activeCodeSlide && (
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-[10px] text-[var(--app-muted)]">
+                  Zuordnungen werden für dieses Layout gespeichert.
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => clearLayoutSlotOverrides(activeSlideIndex)}
+                  disabled={!hasLayoutOverrides}
+                >
+                  Automatik
+                </Button>
+              </div>
+            )}
             <PlaceholderList
               placeholders={activeLayout.placeholders}
               codeSlide={activeCodeSlide}
@@ -431,8 +466,9 @@ export const SettingsPanel: React.FC = () => {
             />
             {activeCodeSlide ? (
               <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-                Ordne pro Zeile einen React-Slot (Titel/Inhalt) einem
-                Bereich zu oder blende ihn aus.
+                Ordne pro Zeile einen React-Slot einem Bereich zu oder blende
+                ihn aus. Layout/Master/Fallback zeigen, woher die Geometrie
+                kommt.
               </div>
             ) : (
               <div className="mt-1 text-[10px] text-[var(--app-muted)]">

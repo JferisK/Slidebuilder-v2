@@ -2,13 +2,19 @@ import * as React from "react";
 import html2canvas from "html2canvas";
 import { Download } from "lucide-react";
 import { useSlideStore } from "@/store/slideStore";
+import { getRenderSlideSize } from "@/lib/slideSize";
 import { Button } from "./ui/button";
 
 export const ExportButton: React.FC = () => {
   const setAnnotationsVisible = useSlideStore((s) => s.setAnnotationsVisible);
   const showToast = useSlideStore((s) => s.showToast);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
+  const slideSize = useSlideStore((s) => s.presentation?.slideSize);
   const [busy, setBusy] = React.useState(false);
+  const renderSize = React.useMemo(
+    () => getRenderSlideSize(slideSize),
+    [slideSize],
+  );
 
   const handleExport = async () => {
     const el = document.getElementById(
@@ -29,8 +35,8 @@ export const ExportButton: React.FC = () => {
 
     try {
       const canvas = await html2canvas(el, {
-        width: 1280,
-        height: 720,
+        width: renderSize.width,
+        height: renderSize.height,
         scale: 2,
         useCORS: true,
         logging: false,

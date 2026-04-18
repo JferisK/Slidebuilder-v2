@@ -5,23 +5,29 @@ import {
   MousePointerSquareDashed,
   X,
 } from "lucide-react";
-import type { Placeholder, SlideLayout } from "@/parser/pptxParser";
+import type {
+  Placeholder,
+  SlideLayout,
+  SlideSize,
+} from "@/parser/pptxParser";
 import { useSlideStore, type AreaRect } from "@/store/slideStore";
 import {
   formatElementLabel,
   makeElementId,
   parseElementId,
 } from "@/lib/elementId";
+import {
+  formatSlideAspect,
+  getRenderSlideSize,
+} from "@/lib/slideSize";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tooltip } from "./ui/tooltip";
 
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
-
 interface AnnotationLayerProps {
   scale: number;
   layout: SlideLayout;
+  slideSize?: SlideSize;
   activeMasterName: string;
   slideId: string;
   slideOrdinal: number;
@@ -138,6 +144,7 @@ function buildCopilotPrompt({
   themeColors,
   slideId,
   slideOrdinal,
+  slideSize,
 }: {
   masterName: string;
   layoutName: string;
@@ -153,7 +160,9 @@ function buildCopilotPrompt({
   themeColors: Record<string, string>;
   slideId: string;
   slideOrdinal: number;
+  slideSize?: SlideSize;
 }): string {
+  const renderSize = getRenderSlideSize(slideSize);
   const lines: string[] = [
     "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
     "",
@@ -167,7 +176,7 @@ function buildCopilotPrompt({
     `Layout: "${layoutName}"`,
     `Slide-Id: "${slideId}"`,
     `Slide-Ordinal: ${slideOrdinal}`,
-    `Slide-Größe: 1280×720px (16:9)`,
+    `Slide-Größe: ${renderSize.width}×${renderSize.height}px (${formatSlideAspect(slideSize)})`,
     "",
     "## Theme-Farben",
     `  Hintergrund:   ${themeColors["--slide-bg"] ?? "?"}`,
@@ -237,6 +246,7 @@ function buildCopilotPrompt({
 export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   scale,
   layout,
+  slideSize,
   activeMasterName,
   slideId,
   slideOrdinal,
@@ -263,6 +273,10 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const [drawingArea, setDrawingArea] = React.useState(false);
   const [draftComment, setDraftComment] = React.useState("");
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  const renderSize = React.useMemo(
+    () => getRenderSlideSize(slideSize),
+    [slideSize],
+  );
 
   const slidePins = annotations.filter(
     (a) => a.slideIndex === activeSlideIndex,
@@ -273,8 +287,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     return {
-      xNorm: Math.max(0, Math.min(1, x / SLIDE_W)),
-      yNorm: Math.max(0, Math.min(1, y / SLIDE_H)),
+      xNorm: Math.max(0, Math.min(1, x / renderSize.width)),
+      yNorm: Math.max(0, Math.min(1, y / renderSize.height)),
     };
   };
 
@@ -453,6 +467,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       themeColors,
       slideId,
       slideOrdinal,
+      slideSize,
     });
 
     try {
@@ -670,8 +685,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       style={{
         position: "absolute",
         inset: 0,
-        width: SLIDE_W,
-        height: SLIDE_H,
+        width: renderSize.width,
+        height: renderSize.height,
         cursor: "crosshair",
         zIndex: 10,
       }}

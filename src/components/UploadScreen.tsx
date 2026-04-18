@@ -1,6 +1,9 @@
 import * as React from "react";
 import { FileUp, Loader2 } from "lucide-react";
-import { parsePptx } from "@/parser/pptxParser";
+import {
+  PPTX_PARSER_VERSION,
+  parsePptx,
+} from "@/parser/pptxParser";
 import { useSlideStore, type StoredTemplate } from "@/store/slideStore";
 import { Button } from "./ui/button";
 
@@ -35,8 +38,10 @@ export const UploadScreen: React.FC = () => {
         name: file.name.replace(/\.pptx$/i, ""),
         fileName: file.name,
         uploadedAt: Date.now(),
+        parserVersion: PPTX_PARSER_VERSION,
         pptxData: arrayBuffer,
         parsed,
+        layoutSlotOverrides: {},
       };
 
       await addTemplate(tpl);

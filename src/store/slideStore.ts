@@ -5,8 +5,12 @@ import type {
   SlideMaster,
 } from "@/parser/pptxParser";
 import {
+  PPTX_PARSER_VERSION,
+  parsePptxData,
+} from "@/parser/pptxParser";
+import {
   listTemplates,
-  saveTemplate,
+  saveTemplate as saveTemplateToDb,
   deleteTemplate as deleteTemplateFromDb,
   listProjects,
   saveProject as saveProjectToDb,
@@ -131,6 +135,7 @@ export interface SlideForgeStore {
     slotKey: string,
     placeholderIdx: number | null,
   ) => void;
+  clearLayoutSlotOverrides: (slideIndex: number) => void;
   togglePlaceholderHidden: (slideIndex: number, placeholderIdx: number) => void;
   updateSlideContent: (
     slideIndex: number,
@@ -185,6 +190,55 @@ function findLayout(
   return master?.layouts.find((l) => l.id === layoutId);
 }
 
+function getTemplateLayoutOverrides(
+  templates: StoredTemplate[],
+  templateId: string | null,
+  layoutId: string,
+): Record<string, number> | undefined {
+  if (!templateId) return undefined;
+  const template = templates.find((t) => t.id === templateId);
+  return template?.layoutSlotOverrides?.[layoutId];
+}
+
+function resolveCodeSlotMapping(
+  codeSlideId: string | null | undefined,
+  layout: SlideLayout | undefined,
+  existing: Record<string, number> | undefined,
+  templates: StoredTemplate[],
+  activeTemplateId: string | null,
+): Record<string, number> | undefined {
+  const codeSlide = getCodeSlide(codeSlideId);
+  if (!codeSlide || !layout) return undefined;
+  const layoutOverrides = getTemplateLayoutOverrides(
+    templates,
+    activeTemplateId,
+    layout.id,
+  );
+  return autoMapCodeSlots(codeSlide, layout, {
+    ...(existing ?? {}),
+    ...(layoutOverrides ?? {}),
+  });
+}
+
+function updateTemplateLayoutOverrides(
+  template: StoredTemplate,
+  layoutId: string,
+  nextOverrides: Record<string, number> | undefined,
+): StoredTemplate {
+  const current = template.layoutSlotOverrides ?? {};
+  const updatedLayoutSlotOverrides = { ...current };
+  if (!nextOverrides || Object.keys(nextOverrides).length === 0) {
+    delete updatedLayoutSlotOverrides[layoutId];
+  } else {
+    updatedLayoutSlotOverrides[layoutId] = nextOverrides;
+  }
+  return {
+    ...template,
+    parserVersion: PPTX_PARSER_VERSION,
+    layoutSlotOverrides: updatedLayoutSlotOverrides,
+  };
+}
+
 export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   // ── Templates ────────────────────────────────────────────
   templates: [],
@@ -192,8 +246,36 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
 
   loadTemplates: async () => {
     try {
-      const tpls = await listTemplates();
-      set({ templates: tpls });
+      const stored = await listTemplates();
+      const upgraded = await Promise.all(
+        stored.map(async (tpl) => {
+          const needsReparse = tpl.parserVersion !== PPTX_PARSER_VERSION;
+          if (!needsReparse) {
+            return {
+              ...tpl,
+              layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+            };
+          }
+          try {
+            const parsed = await parsePptxData(tpl.pptxData.slice(0));
+            const nextTpl: StoredTemplate = {
+              ...tpl,
+              parsed,
+              parserVersion: PPTX_PARSER_VERSION,
+              layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+            };
+            await saveTemplateToDb(nextTpl);
+            return nextTpl;
+          } catch (err) {
+            console.warn("[store] template reparse failed:", err);
+            return {
+              ...tpl,
+              layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+            };
+          }
+        }),
+      );
+      set({ templates: upgraded });
     } catch (err) {
       console.warn("[store] loadTemplates failed:", err);
     }
@@ -201,7 +283,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
 
   addTemplate: async (tpl) => {
     try {
-      await saveTemplate(tpl);
+      await saveTemplateToDb(tpl);
       set({ templates: [...get().templates, tpl] });
     } catch (err) {
       console.warn("[store] addTemplate failed:", err);
@@ -265,15 +347,29 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   setActiveMaster: (id) => {
-    const { presentation, slides, activeSlideIndex } = get();
+    const {
+      presentation,
+      slides,
+      activeSlideIndex,
+      templates,
+      activeTemplateId,
+    } = get();
     const newMaster = presentation?.masters.find((m) => m.id === id);
     if (!newMaster) return;
     const nextSlides = slides.map((slide, i) => {
       if (i !== activeSlideIndex) return slide;
+      const nextLayout = newMaster.layouts[0];
       return {
         ...slide,
         masterId: newMaster.id,
-        layoutId: newMaster.layouts[0]?.id ?? slide.layoutId,
+        layoutId: nextLayout?.id ?? slide.layoutId,
+        codeSlotMapping: resolveCodeSlotMapping(
+          slide.codeSlideId,
+          nextLayout,
+          slide.codeSlotMapping,
+          templates,
+          activeTemplateId,
+        ),
       };
     });
     set({
@@ -320,14 +416,23 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   resetZoom: () => set({ canvasZoom: 1 }),
 
   addSlide: (codeSlideId) => {
-    const { presentation, activeMasterId, slides } = get();
+    const {
+      presentation,
+      activeMasterId,
+      slides,
+      templates,
+      activeTemplateId,
+    } = get();
     const master = findMaster(presentation, activeMasterId);
     const layout = master?.layouts[0];
     if (!master || !layout) return;
-    const codeSlide = getCodeSlide(codeSlideId);
-    const codeSlotMapping = codeSlide
-      ? autoMapCodeSlots(codeSlide, layout)
-      : undefined;
+    const codeSlotMapping = resolveCodeSlotMapping(
+      codeSlideId,
+      layout,
+      undefined,
+      templates,
+      activeTemplateId,
+    );
     const newSlide: Slide = {
       id: uid(),
       masterId: master.id,
@@ -375,7 +480,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   setLayoutForSlide: (slideIndex, layoutId) => {
-    const { slides, presentation } = get();
+    const { slides, presentation, templates, activeTemplateId } = get();
     const slide = slides[slideIndex];
     if (!slide) return;
     const owningMaster = presentation?.masters.find((m) =>
@@ -383,13 +488,13 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     );
     if (!owningMaster) return;
     const newLayout = owningMaster.layouts.find((l) => l.id === layoutId);
-    const codeSlide = getCodeSlide(slide.codeSlideId);
-    // Re-run auto-mapping when the layout changes: existing mappings are
-    // preserved where the idx still exists, others get re-assigned.
-    const nextMapping =
-      codeSlide && newLayout
-        ? autoMapCodeSlots(codeSlide, newLayout, slide.codeSlotMapping)
-        : undefined;
+    const nextMapping = resolveCodeSlotMapping(
+      slide.codeSlideId,
+      newLayout,
+      slide.codeSlotMapping,
+      templates,
+      activeTemplateId,
+    );
     const next = slides.map((s, i) =>
       i === slideIndex
         ? {
@@ -404,14 +509,18 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   setCodeSlideForSlide: (slideIndex, codeSlideId) => {
-    const { slides, presentation } = get();
+    const { slides, presentation, templates, activeTemplateId } = get();
     const slide = slides[slideIndex];
     if (!slide) return;
     const master = findMaster(presentation, slide.masterId);
     const layout = master?.layouts.find((l) => l.id === slide.layoutId);
-    const codeSlide = getCodeSlide(codeSlideId);
-    const mapping =
-      codeSlide && layout ? autoMapCodeSlots(codeSlide, layout) : undefined;
+    const mapping = resolveCodeSlotMapping(
+      codeSlideId,
+      layout,
+      undefined,
+      templates,
+      activeTemplateId,
+    );
     const next = slides.map((s, i) =>
       i === slideIndex
         ? {
@@ -425,7 +534,12 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   setCodeSlotMapping: (slideIndex, slotKey, placeholderIdx) => {
-    const { slides } = get();
+    const {
+      slides,
+      presentation,
+      templates,
+      activeTemplateId,
+    } = get();
     const slide = slides[slideIndex];
     if (!slide) return;
     const current = slide.codeSlotMapping ?? {};
@@ -433,16 +547,119 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     if (placeholderIdx === null) {
       delete next[slotKey];
     } else {
-      // If another slot already points to this idx, clear it (no collisions).
       for (const key of Object.keys(next)) {
         if (next[key] === placeholderIdx) delete next[key];
       }
       next[slotKey] = placeholderIdx;
     }
-    const updatedSlides = slides.map((s, i) =>
-      i === slideIndex ? { ...s, codeSlotMapping: next } : s,
+
+    if (!activeTemplateId) {
+      const updatedSlides = slides.map((s, i) =>
+        i === slideIndex ? { ...s, codeSlotMapping: next } : s,
+      );
+      set({ slides: updatedSlides });
+      return;
+    }
+
+    const activeTemplate = templates.find((t) => t.id === activeTemplateId);
+    if (!activeTemplate) {
+      const updatedSlides = slides.map((s, i) =>
+        i === slideIndex ? { ...s, codeSlotMapping: next } : s,
+      );
+      set({ slides: updatedSlides });
+      return;
+    }
+
+    const currentLayoutOverrides = {
+      ...(activeTemplate.layoutSlotOverrides?.[slide.layoutId] ?? {}),
+    };
+    if (placeholderIdx === null) {
+      delete currentLayoutOverrides[slotKey];
+    } else {
+      for (const key of Object.keys(currentLayoutOverrides)) {
+        if (currentLayoutOverrides[key] === placeholderIdx) {
+          delete currentLayoutOverrides[key];
+        }
+      }
+      currentLayoutOverrides[slotKey] = placeholderIdx;
+    }
+
+    const updatedTemplate = updateTemplateLayoutOverrides(
+      activeTemplate,
+      slide.layoutId,
+      Object.keys(currentLayoutOverrides).length > 0
+        ? currentLayoutOverrides
+        : undefined,
     );
-    set({ slides: updatedSlides });
+    const nextTemplates = templates.map((t) =>
+      t.id === updatedTemplate.id ? updatedTemplate : t,
+    );
+    void saveTemplateToDb(updatedTemplate).catch((err) => {
+      console.warn("[store] save layout slot override failed:", err);
+    });
+
+    const updatedSlides = slides.map((s, i) => {
+      if (s.layoutId !== slide.layoutId || !s.codeSlideId) {
+        return i === slideIndex ? { ...s, codeSlotMapping: next } : s;
+      }
+      const master = findMaster(presentation, s.masterId);
+      const layout = findLayout(master, s.layoutId);
+      return {
+        ...s,
+        codeSlotMapping: resolveCodeSlotMapping(
+          s.codeSlideId,
+          layout,
+          i === slideIndex ? next : s.codeSlotMapping,
+          nextTemplates,
+          activeTemplateId,
+        ),
+      };
+    });
+
+    set({ slides: updatedSlides, templates: nextTemplates });
+  },
+
+  clearLayoutSlotOverrides: (slideIndex) => {
+    const {
+      slides,
+      presentation,
+      templates,
+      activeTemplateId,
+    } = get();
+    const slide = slides[slideIndex];
+    if (!slide || !activeTemplateId) return;
+    const activeTemplate = templates.find((t) => t.id === activeTemplateId);
+    if (!activeTemplate) return;
+
+    const updatedTemplate = updateTemplateLayoutOverrides(
+      activeTemplate,
+      slide.layoutId,
+      undefined,
+    );
+    const nextTemplates = templates.map((t) =>
+      t.id === updatedTemplate.id ? updatedTemplate : t,
+    );
+    void saveTemplateToDb(updatedTemplate).catch((err) => {
+      console.warn("[store] clear layout slot overrides failed:", err);
+    });
+
+    const updatedSlides = slides.map((s) => {
+      if (s.layoutId !== slide.layoutId || !s.codeSlideId) return s;
+      const master = findMaster(presentation, s.masterId);
+      const layout = findLayout(master, s.layoutId);
+      return {
+        ...s,
+        codeSlotMapping: resolveCodeSlotMapping(
+          s.codeSlideId,
+          layout,
+          undefined,
+          nextTemplates,
+          activeTemplateId,
+        ),
+      };
+    });
+
+    set({ slides: updatedSlides, templates: nextTemplates });
   },
 
   togglePlaceholderHidden: (slideIndex, placeholderIdx) => {

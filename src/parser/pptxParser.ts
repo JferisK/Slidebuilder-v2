@@ -2,8 +2,11 @@ import JSZip from "jszip";
 
 // ---------- Types -----------------------------------------------------------
 
+export const PPTX_PARSER_VERSION = 2;
+
 export interface ParsedPresentation {
   masters: SlideMaster[];
+  slideSize: SlideSize;
 }
 
 export interface SlideMaster {
@@ -24,6 +27,11 @@ export interface SlideTheme {
     "--slide-font-heading": string;
     "--slide-font-body": string;
   };
+}
+
+export interface SlideSize {
+  widthEmu: number;
+  heightEmu: number;
 }
 
 export interface SlideLayout {
@@ -50,13 +58,23 @@ export interface Placeholder {
     w: number;
     h: number;
   };
+  source?: "layout" | "master" | "fallback";
   defaultText?: string;
+}
+
+interface ParsedPlaceholderSeed {
+  idx: number;
+  rawIdx: number | null;
+  type: PlaceholderType;
+  position: Placeholder["position"] | null;
 }
 
 // ---------- Constants -------------------------------------------------------
 
-const SLIDE_W_EMU = 9144000;
-const SLIDE_H_EMU = 5143500;
+const FALLBACK_SLIDE_SIZE: SlideSize = {
+  widthEmu: 9144000,
+  heightEmu: 5143500,
+};
 
 const FALLBACK_POSITIONS: Record<string, Placeholder["position"]> = {
   title: { x: 5, y: 5, w: 90, h: 20 },
@@ -131,7 +149,6 @@ function resolveFont(
   if (!typeface) return fallback;
   if (typeface.startsWith("+mj-") || typeface.startsWith("+mn-"))
     return fallback;
-  // Wrap in quotes if it contains spaces
   const needsQuotes = /\s/.test(typeface);
   const primary = needsQuotes ? `"${typeface}"` : typeface;
   return `${primary}, ${fallback}`;
@@ -178,7 +195,6 @@ function parseThemeFromDoc(doc: Document): SlideTheme {
       if (accent1) theme.cssVars["--slide-primary"] = accent1;
       if (accent2) theme.cssVars["--slide-accent"] = accent2;
 
-      // Muted text: dk1 @ 60% over lt1
       if (dk1) {
         const bg = lt1 ?? "#ffffff";
         theme.cssVars["--slide-text-muted"] = blendHex(dk1, bg, 0.6);
@@ -214,47 +230,143 @@ function structuredCloneTheme(t: SlideTheme): SlideTheme {
 
 // ---------- Layout parsing --------------------------------------------------
 
-function parsePlaceholder(sp: Element): Placeholder | null {
+function parsePlaceholderPosition(
+  sp: Element,
+  slideSize: SlideSize,
+): Placeholder["position"] | null {
+  const spPr = sp.getElementsByTagNameNS("*", "spPr")[0];
+  const xfrm = spPr?.getElementsByTagNameNS("*", "xfrm")[0];
+  if (!xfrm) return null;
+  const off = xfrm.getElementsByTagNameNS("*", "off")[0];
+  const ext = xfrm.getElementsByTagNameNS("*", "ext")[0];
+  if (!off || !ext) return null;
+
+  const x = parseInt(off.getAttribute("x") || "0", 10);
+  const y = parseInt(off.getAttribute("y") || "0", 10);
+  const cx = parseInt(ext.getAttribute("cx") || "0", 10);
+  const cy = parseInt(ext.getAttribute("cy") || "0", 10);
+  if (cx <= 0 || cy <= 0) return null;
+
+  return {
+    x: (x / slideSize.widthEmu) * 100,
+    y: (y / slideSize.heightEmu) * 100,
+    w: (cx / slideSize.widthEmu) * 100,
+    h: (cy / slideSize.heightEmu) * 100,
+  };
+}
+
+function parsePlaceholderSeed(
+  sp: Element,
+  slideSize: SlideSize,
+): ParsedPlaceholderSeed | null {
   try {
     const ph = sp.getElementsByTagNameNS("*", "ph")[0];
     if (!ph) return null;
     const idxAttr = ph.getAttribute("idx");
     const typeAttr = ph.getAttribute("type");
-    const idx = idxAttr ? parseInt(idxAttr, 10) || 0 : 0;
+    const rawIdx = idxAttr ? parseInt(idxAttr, 10) || 0 : null;
+    const idx = rawIdx ?? 0;
     const type = typeAttr ?? "body";
-
-    // Geometry: <p:spPr>/<a:xfrm>/<a:off> & <a:ext>
-    const spPr = sp.getElementsByTagNameNS("*", "spPr")[0];
-    const xfrm = spPr?.getElementsByTagNameNS("*", "xfrm")[0];
-    let position: Placeholder["position"] | null = null;
-    if (xfrm) {
-      const off = xfrm.getElementsByTagNameNS("*", "off")[0];
-      const ext = xfrm.getElementsByTagNameNS("*", "ext")[0];
-      if (off && ext) {
-        const x = parseInt(off.getAttribute("x") || "0", 10);
-        const y = parseInt(off.getAttribute("y") || "0", 10);
-        const cx = parseInt(ext.getAttribute("cx") || "0", 10);
-        const cy = parseInt(ext.getAttribute("cy") || "0", 10);
-        if (cx > 0 && cy > 0) {
-          position = {
-            x: (x / SLIDE_W_EMU) * 100,
-            y: (y / SLIDE_H_EMU) * 100,
-            w: (cx / SLIDE_W_EMU) * 100,
-            h: (cy / SLIDE_H_EMU) * 100,
-          };
-        }
-      }
-    }
-    if (!position) {
-      position =
-        FALLBACK_POSITIONS[type] ??
-        FALLBACK_POSITIONS[idx === 0 ? "title" : "body"];
-    }
-    return { idx, type, position };
+    const position = parsePlaceholderPosition(sp, slideSize);
+    return { idx, rawIdx, type, position };
   } catch (err) {
     console.warn("[pptxParser] Placeholder parse error:", err);
     return null;
   }
+}
+
+function parsePlaceholderSeeds(
+  doc: Document | null,
+  slideSize: SlideSize,
+  logContext: "layout" | "master",
+): ParsedPlaceholderSeed[] {
+  if (!doc) return [];
+  const placeholders: ParsedPlaceholderSeed[] = [];
+  try {
+    const shapes = Array.from(doc.getElementsByTagNameNS("*", "sp"));
+    for (const sp of shapes) {
+      const ph = parsePlaceholderSeed(sp, slideSize);
+      if (ph) placeholders.push(ph);
+    }
+  } catch (err) {
+    console.warn(`[pptxParser] ${logContext} shape parse error:`, err);
+  }
+  return placeholders;
+}
+
+function placeholderTypeFamily(type: PlaceholderType): string {
+  if (type === "title" || type === "ctrTitle") return "title";
+  return type;
+}
+
+function placeholderMatchScore(
+  layoutPh: ParsedPlaceholderSeed,
+  masterPh: ParsedPlaceholderSeed,
+): number {
+  const sameIdx =
+    layoutPh.rawIdx !== null &&
+    masterPh.rawIdx !== null &&
+    layoutPh.rawIdx === masterPh.rawIdx;
+  const exactType = layoutPh.type === masterPh.type;
+  const sameFamily =
+    placeholderTypeFamily(layoutPh.type) ===
+    placeholderTypeFamily(masterPh.type);
+
+  if (sameIdx && exactType) return 100;
+  if (sameIdx && sameFamily) return 90;
+  if (exactType && layoutPh.rawIdx === null && masterPh.rawIdx === null)
+    return 80;
+  if (sameFamily && layoutPh.rawIdx === null && masterPh.rawIdx === null)
+    return 70;
+  if (exactType && (layoutPh.rawIdx === null || masterPh.rawIdx === null))
+    return 60;
+  if (sameFamily && (layoutPh.rawIdx === null || masterPh.rawIdx === null))
+    return 50;
+  if (sameIdx) return 40;
+  return -1;
+}
+
+function resolvePlaceholder(
+  placeholder: ParsedPlaceholderSeed,
+  masterPlaceholders: ParsedPlaceholderSeed[],
+): Placeholder {
+  if (placeholder.position) {
+    return {
+      idx: placeholder.idx,
+      type: placeholder.type,
+      position: placeholder.position,
+      source: "layout",
+    };
+  }
+
+  let inherited: Placeholder["position"] | null = null;
+  let bestScore = -1;
+  for (const masterPh of masterPlaceholders) {
+    if (!masterPh.position) continue;
+    const score = placeholderMatchScore(placeholder, masterPh);
+    if (score > bestScore) {
+      bestScore = score;
+      inherited = masterPh.position;
+    }
+  }
+
+  if (inherited) {
+    return {
+      idx: placeholder.idx,
+      type: placeholder.type,
+      position: inherited,
+      source: "master",
+    };
+  }
+
+  return {
+    idx: placeholder.idx,
+    type: placeholder.type,
+    position:
+      FALLBACK_POSITIONS[placeholder.type] ??
+      FALLBACK_POSITIONS[placeholder.idx === 0 ? "title" : "body"],
+    source: "fallback",
+  };
 }
 
 async function parseLayout(
@@ -262,11 +374,14 @@ async function parseLayout(
   layoutPath: string,
   layoutId: string,
   fallbackName: string,
+  slideSize: SlideSize,
+  masterPlaceholders: ParsedPlaceholderSeed[],
 ): Promise<SlideLayout> {
   const doc = await readXml(zip, layoutPath);
   if (!doc) {
     return { id: layoutId, name: fallbackName, placeholders: [] };
   }
+
   let name = fallbackName;
   try {
     const cSld = doc.getElementsByTagNameNS("*", "cSld")[0];
@@ -276,16 +391,9 @@ async function parseLayout(
     console.warn("[pptxParser] Layout name parse error:", err);
   }
 
-  const placeholders: Placeholder[] = [];
-  try {
-    const shapes = Array.from(doc.getElementsByTagNameNS("*", "sp"));
-    for (const sp of shapes) {
-      const ph = parsePlaceholder(sp);
-      if (ph) placeholders.push(ph);
-    }
-  } catch (err) {
-    console.warn("[pptxParser] Layout shape parse error:", err);
-  }
+  const placeholders = parsePlaceholderSeeds(doc, slideSize, "layout").map(
+    (ph) => resolvePlaceholder(ph, masterPlaceholders),
+  );
 
   return { id: layoutId, name, placeholders };
 }
@@ -293,7 +401,7 @@ async function parseLayout(
 // ---------- Master parsing --------------------------------------------------
 
 interface MasterRelEntry {
-  target: string; // normalized absolute zip path
+  target: string;
   rid: string;
 }
 
@@ -315,7 +423,6 @@ async function parseMasterRels(
       if (!type.endsWith("/slideLayout")) continue;
       const target = r.getAttribute("Target") || "";
       const rid = r.getAttribute("Id") || "";
-      // Resolve relative path (e.g. ../slideLayouts/slideLayout1.xml)
       const resolved = resolveZipPath(masterPath, target);
       entries.push({ target: resolved, rid });
     }
@@ -328,7 +435,7 @@ async function parseMasterRels(
 function resolveZipPath(basePath: string, relPath: string): string {
   if (relPath.startsWith("/")) return relPath.replace(/^\/+/, "");
   const baseParts = basePath.split("/");
-  baseParts.pop(); // drop filename
+  baseParts.pop();
   const relParts = relPath.split("/");
   for (const part of relParts) {
     if (part === "..") baseParts.pop();
@@ -342,6 +449,7 @@ async function parseMaster(
   masterPath: string,
   masterIndex: number,
   theme: SlideTheme,
+  slideSize: SlideSize,
 ): Promise<SlideMaster> {
   const doc = await readXml(zip, masterPath);
   let name = `Folienmaster ${masterIndex + 1}`;
@@ -355,24 +463,41 @@ async function parseMaster(
     console.warn("[pptxParser] Master name parse error:", err);
   }
 
+  const masterPlaceholders = parsePlaceholderSeeds(doc, slideSize, "master");
   const rels = await parseMasterRels(zip, masterPath);
   const layouts: SlideLayout[] = [];
   let i = 0;
   for (const rel of rels) {
     const layoutId = `${masterPath}::${rel.rid}`;
     const fallbackName = `Layout ${++i}`;
-    const layout = await parseLayout(zip, rel.target, layoutId, fallbackName);
+    const layout = await parseLayout(
+      zip,
+      rel.target,
+      layoutId,
+      fallbackName,
+      slideSize,
+      masterPlaceholders,
+    );
     layouts.push(layout);
   }
 
   if (layouts.length === 0) {
-    // Ensure at least one usable layout so the UI can still render.
     layouts.push({
       id: `${masterPath}::fallback`,
       name: "Leeres Layout",
       placeholders: [
-        { idx: 0, type: "title", position: FALLBACK_POSITIONS.title },
-        { idx: 1, type: "body", position: FALLBACK_POSITIONS.body },
+        {
+          idx: 0,
+          type: "title",
+          position: FALLBACK_POSITIONS.title,
+          source: "fallback",
+        },
+        {
+          idx: 1,
+          type: "body",
+          position: FALLBACK_POSITIONS.body,
+          source: "fallback",
+        },
       ],
     });
   }
@@ -389,6 +514,7 @@ async function parseMaster(
 
 function makeFallbackPresentation(): ParsedPresentation {
   return {
+    slideSize: FALLBACK_SLIDE_SIZE,
     masters: [
       {
         id: "fallback-master",
@@ -399,8 +525,18 @@ function makeFallbackPresentation(): ParsedPresentation {
             id: "fallback-layout",
             name: "Titel & Inhalt",
             placeholders: [
-              { idx: 0, type: "title", position: FALLBACK_POSITIONS.title },
-              { idx: 1, type: "body", position: FALLBACK_POSITIONS.body },
+              {
+                idx: 0,
+                type: "title",
+                position: FALLBACK_POSITIONS.title,
+                source: "fallback",
+              },
+              {
+                idx: 1,
+                type: "body",
+                position: FALLBACK_POSITIONS.body,
+                source: "fallback",
+              },
             ],
           },
         ],
@@ -409,43 +545,87 @@ function makeFallbackPresentation(): ParsedPresentation {
   };
 }
 
+function parseSlideSizeFromDoc(doc: Document | null): SlideSize {
+  if (!doc) return FALLBACK_SLIDE_SIZE;
+  try {
+    const sldSz = doc.getElementsByTagNameNS("*", "sldSz")[0];
+    const widthEmu = parseInt(
+      sldSz?.getAttribute("cx") || `${FALLBACK_SLIDE_SIZE.widthEmu}`,
+      10,
+    );
+    const heightEmu = parseInt(
+      sldSz?.getAttribute("cy") || `${FALLBACK_SLIDE_SIZE.heightEmu}`,
+      10,
+    );
+    if (widthEmu > 0 && heightEmu > 0) {
+      return { widthEmu, heightEmu };
+    }
+  } catch (err) {
+    console.warn("[pptxParser] Slide size parse error:", err);
+  }
+  return FALLBACK_SLIDE_SIZE;
+}
+
+async function parsePptxSource(
+  source: File | ArrayBuffer,
+): Promise<ParsedPresentation> {
+  const zip = await JSZip.loadAsync(source);
+
+  let theme = FALLBACK_THEME;
+  const themeDoc = await readXml(zip, "ppt/theme/theme1.xml");
+  if (themeDoc) {
+    theme = parseThemeFromDoc(themeDoc);
+  } else {
+    console.warn("[pptxParser] ppt/theme/theme1.xml missing, using fallback");
+  }
+
+  const presentationDoc = await readXml(zip, "ppt/presentation.xml");
+  const slideSize = parseSlideSizeFromDoc(presentationDoc);
+
+  const masterPaths: string[] = [];
+  const files = Object.keys(zip.files);
+  for (const path of files) {
+    if (/^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(path)) {
+      masterPaths.push(path);
+    }
+  }
+  masterPaths.sort();
+
+  if (masterPaths.length === 0) {
+    console.warn("[pptxParser] No slide masters found");
+    return makeFallbackPresentation();
+  }
+
+  const masters: SlideMaster[] = [];
+  for (let i = 0; i < masterPaths.length; i++) {
+    const master = await parseMaster(
+      zip,
+      masterPaths[i],
+      i,
+      theme,
+      slideSize,
+    );
+    masters.push(master);
+  }
+
+  if (masters.length === 0) return makeFallbackPresentation();
+  return { masters, slideSize };
+}
+
 export async function parsePptx(file: File): Promise<ParsedPresentation> {
   try {
-    const zip = await JSZip.loadAsync(file);
+    return await parsePptxSource(file);
+  } catch (err) {
+    console.warn("[pptxParser] Fatal parse error, returning fallback:", err);
+    return makeFallbackPresentation();
+  }
+}
 
-    // Parse shared theme (theme1.xml). Applied to all masters; most decks only
-    // have one theme anyway and the spec asks us to focus on theme1.
-    let theme = FALLBACK_THEME;
-    const themeDoc = await readXml(zip, "ppt/theme/theme1.xml");
-    if (themeDoc) {
-      theme = parseThemeFromDoc(themeDoc);
-    } else {
-      console.warn("[pptxParser] ppt/theme/theme1.xml missing, using fallback");
-    }
-
-    // Collect master paths
-    const masterPaths: string[] = [];
-    const files = Object.keys(zip.files);
-    for (const path of files) {
-      if (/^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(path)) {
-        masterPaths.push(path);
-      }
-    }
-    masterPaths.sort();
-
-    if (masterPaths.length === 0) {
-      console.warn("[pptxParser] No slide masters found");
-      return makeFallbackPresentation();
-    }
-
-    const masters: SlideMaster[] = [];
-    for (let i = 0; i < masterPaths.length; i++) {
-      const master = await parseMaster(zip, masterPaths[i], i, theme);
-      masters.push(master);
-    }
-
-    if (masters.length === 0) return makeFallbackPresentation();
-    return { masters };
+export async function parsePptxData(
+  data: ArrayBuffer,
+): Promise<ParsedPresentation> {
+  try {
+    return await parsePptxSource(data);
   } catch (err) {
     console.warn("[pptxParser] Fatal parse error, returning fallback:", err);
     return makeFallbackPresentation();

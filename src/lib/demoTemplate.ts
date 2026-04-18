@@ -7,6 +7,10 @@ import type { ParsedPresentation } from "@/parser/pptxParser";
 
 export function createDemoPresentation(): ParsedPresentation {
   return {
+    slideSize: {
+      widthEmu: 9144000,
+      heightEmu: 5143500,
+    },
     masters: [
       // ── Master 1: Corporate Blue ────────────────────────────
       {

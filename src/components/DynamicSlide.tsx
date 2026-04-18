@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import type {
   Placeholder,
   SlideLayout,
+  SlideSize,
   SlideTheme,
 } from "@/parser/pptxParser";
 import {
@@ -10,10 +11,12 @@ import {
   formatElementLabel,
   makeElementId,
 } from "@/lib/elementId";
+import { getRenderSlideSize } from "@/lib/slideSize";
 
 export interface DynamicSlideProps {
   layout: SlideLayout;
   theme: SlideTheme;
+  slideSize?: SlideSize;
   content: Record<string, string>;
   isExporting?: boolean;
   /** Unique id of the slide that owns these placeholders. */
@@ -156,6 +159,7 @@ function renderPlaceholderContent(
 export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   layout,
   theme,
+  slideSize,
   content,
   isExporting = false,
   slideId,
@@ -167,11 +171,12 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
   const selectedList = selectedElementIds ?? [];
+  const renderSize = getRenderSlideSize(slideSize);
   return (
     <div
       style={{
-        width: 1280,
-        height: 720,
+        width: renderSize.width,
+        height: renderSize.height,
         position: "relative",
         overflow: "hidden",
         background: "var(--slide-bg)",

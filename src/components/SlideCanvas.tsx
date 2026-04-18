@@ -8,9 +8,7 @@ import {
 import { DynamicSlide } from "./DynamicSlide";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { getCodeSlide } from "@/slides/registry";
-
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
+import { getRenderSlideSize } from "@/lib/slideSize";
 
 export const SlideCanvas: React.FC = () => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -20,6 +18,7 @@ export const SlideCanvas: React.FC = () => {
   const activeSlide = useActiveSlide();
   const activeLayout = useActiveLayout();
   const activeMaster = useActiveMaster();
+  const slideSize = useSlideStore((s) => s.presentation?.slideSize);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const selectedElementIds = useSlideStore((s) => s.selectedElementIds);
   const canvasZoom = useSlideStore((s) => s.canvasZoom);
@@ -38,6 +37,13 @@ export const SlideCanvas: React.FC = () => {
     setWidth(el.getBoundingClientRect().width);
     return () => observer.disconnect();
   }, []);
+
+  const renderSize = React.useMemo(
+    () => getRenderSlideSize(slideSize),
+    [slideSize],
+  );
+  const SLIDE_W = renderSize.width;
+  const SLIDE_H = renderSize.height;
 
   const fitScale = width > 0 ? width / SLIDE_W : 1;
   const effectiveScale = fitScale * canvasZoom;
@@ -139,6 +145,7 @@ export const SlideCanvas: React.FC = () => {
             <DynamicSlide
               layout={activeLayout}
               theme={activeMaster.theme}
+              slideSize={slideSize}
               content={activeSlide.content}
               showPlaceholderOutlines={true}
               slideId={slideId}
@@ -150,6 +157,7 @@ export const SlideCanvas: React.FC = () => {
             <AnnotationLayer
               scale={effectiveScale}
               layout={activeLayout}
+              slideSize={slideSize}
               activeMasterName={activeMaster.name}
               slideId={slideId}
               slideOrdinal={slideOrdinal}

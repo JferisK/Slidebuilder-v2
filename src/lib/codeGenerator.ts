@@ -6,13 +6,16 @@
 import type {
   Placeholder,
   SlideLayout,
+  SlideSize,
   SlideTheme,
 } from "@/parser/pptxParser";
+import { getRenderSlideSize } from "./slideSize";
 
 export interface SlideCodeInput {
   componentName: string;
   layout: SlideLayout;
   theme: SlideTheme;
+  slideSize?: SlideSize;
   content: Record<string, string>;
 }
 
@@ -67,7 +70,8 @@ function buildPlaceholderJsx(
 }
 
 export function generateSlideCode(input: SlideCodeInput): string {
-  const { componentName, layout, theme, content } = input;
+  const { componentName, layout, theme, slideSize, content } = input;
+  const renderSize = getRenderSlideSize(slideSize);
 
   const cssVarEntries = Object.entries(theme.cssVars)
     .map(([k, v]) => `    "${k}": "${v}"`)
@@ -93,8 +97,8 @@ const ${componentName}: React.FC = () => {
   return (
     <div
       style={{
-        width: 1280,
-        height: 720,
+        width: ${renderSize.width},
+        height: ${renderSize.height},
         position: "relative",
         overflow: "hidden",
         background: "var(--slide-bg)",

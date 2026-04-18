@@ -19,6 +19,7 @@ export const CodeExportButton: React.FC = () => {
   const activeLayout = useActiveLayout();
   const activeSlide = useActiveSlide();
   const activeProject = useActiveProject();
+  const slideSize = useSlideStore((s) => s.presentation?.slideSize);
   const showToast = useSlideStore((s) => s.showToast);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const saveSlideToProject = useSlideStore((s) => s.saveSlideToProject);
@@ -37,6 +38,7 @@ export const CodeExportButton: React.FC = () => {
     componentName: componentName || `Slide${activeSlideIndex + 1}`,
     layout: activeLayout,
     theme: activeMaster.theme,
+    slideSize,
     content: activeSlide.content,
   });
 

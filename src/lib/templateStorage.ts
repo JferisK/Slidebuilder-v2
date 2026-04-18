@@ -17,8 +17,10 @@ export interface StoredTemplate {
   name: string;
   fileName: string;
   uploadedAt: number;
+  parserVersion?: number;
   pptxData: ArrayBuffer;
   parsed: ParsedPresentation;
+  layoutSlotOverrides?: Record<string, Record<string, number>>;
 }
 
 export interface ProjectFolder {
