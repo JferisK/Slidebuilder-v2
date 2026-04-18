@@ -75,8 +75,6 @@ export interface Annotation {
   comment: string;
 }
 
-export type SelectionMode = "unified" | "pin" | "area" | "select";
-
 export interface ContentElementIndexEntry extends ContentElementMeta {}
 
 export type ContentElementIndex = Record<string, ContentElementIndexEntry>;
@@ -129,10 +127,6 @@ export interface SlideForgeStore {
   toggleElementSelected: (id: string) => void;
   addElementsToSelection: (ids: string[]) => void;
   clearElementSelection: () => void;
-
-  // ── Selection mode (unified | pin | area | select) ──────
-  selectionMode: SelectionMode;
-  setSelectionMode: (mode: SelectionMode) => void;
 
   // ── Content-element index (per slide, built at render time) ──
   contentElementIndex: Record<string, ContentElementIndex>;
@@ -420,7 +414,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   activeMasterId: null,
   activeSlideIndex: 0,
   selectedElementIds: [],
-  selectionMode: "unified",
   contentElementIndex: {},
   pendingEditPrompt: null,
   canvasZoom: 1,
@@ -507,8 +500,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     set({ selectedElementIds: next });
   },
   clearElementSelection: () => set({ selectedElementIds: [] }),
-
-  setSelectionMode: (mode) => set({ selectionMode: mode }),
 
   setContentElementsForPlaceholder: (slideId, placeholderIdx, entries) => {
     const current = get().contentElementIndex;
