@@ -27,6 +27,7 @@ import {
   pickProjectDirectoryHandle,
   syncProjectSlideFile,
 } from "@/lib/projectFileSystem";
+import type { ContentElementMeta } from "@/hooks/useElementInstrumentation";
 
 // ---------- Types -----------------------------------------------------------
 
@@ -74,7 +75,17 @@ export interface Annotation {
   comment: string;
 }
 
-export type SelectionMode = "pin" | "area" | "select";
+export type SelectionMode = "unified" | "pin" | "area" | "select";
+
+export interface ContentElementIndexEntry extends ContentElementMeta {}
+
+export type ContentElementIndex = Record<string, ContentElementIndexEntry>;
+
+export interface PendingEditPrompt {
+  /** Element ids that the popover is bound to. Snapshotted at open time. */
+  elementIds: string[];
+  text: string;
+}
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
@@ -119,9 +130,28 @@ export interface SlideForgeStore {
   addElementsToSelection: (ids: string[]) => void;
   clearElementSelection: () => void;
 
-  // ── Selection mode (pin | area | select) ─────────────────
+  // ── Selection mode (unified | pin | area | select) ──────
   selectionMode: SelectionMode;
   setSelectionMode: (mode: SelectionMode) => void;
+
+  // ── Content-element index (per slide, built at render time) ──
+  contentElementIndex: Record<string, ContentElementIndex>;
+  setContentElementsForPlaceholder: (
+    slideId: string,
+    placeholderIdx: number,
+    entries: ContentElementMeta[],
+  ) => void;
+  clearContentElementsForPlaceholder: (
+    slideId: string,
+    placeholderIdx: number,
+  ) => void;
+  clearContentElementsForSlide: (slideId: string) => void;
+
+  // ── Pending edit prompt popover ──────────────────────────
+  pendingEditPrompt: PendingEditPrompt | null;
+  openEditPopover: (elementIds: string[]) => void;
+  updateEditPromptText: (text: string) => void;
+  closeEditPopover: () => void;
 
   // ── Canvas zoom ──────────────────────────────────────────
   canvasZoom: number;
@@ -390,7 +420,9 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   activeMasterId: null,
   activeSlideIndex: 0,
   selectedElementIds: [],
-  selectionMode: "pin",
+  selectionMode: "unified",
+  contentElementIndex: {},
+  pendingEditPrompt: null,
   canvasZoom: 1,
   slides: [],
   annotations: [],
@@ -477,6 +509,59 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   clearElementSelection: () => set({ selectedElementIds: [] }),
 
   setSelectionMode: (mode) => set({ selectionMode: mode }),
+
+  setContentElementsForPlaceholder: (slideId, placeholderIdx, entries) => {
+    const current = get().contentElementIndex;
+    const perSlide = { ...(current[slideId] ?? {}) };
+    // Remove previous entries for this placeholder (by prefix).
+    const prefix = `${slideId}::p${placeholderIdx}::`;
+    for (const key of Object.keys(perSlide)) {
+      if (key.startsWith(prefix)) delete perSlide[key];
+    }
+    for (const entry of entries) {
+      perSlide[entry.id] = entry;
+    }
+    set({
+      contentElementIndex: {
+        ...current,
+        [slideId]: perSlide,
+      },
+    });
+  },
+
+  clearContentElementsForPlaceholder: (slideId, placeholderIdx) => {
+    const current = get().contentElementIndex;
+    const perSlide = current[slideId];
+    if (!perSlide) return;
+    const next: ContentElementIndex = {};
+    const prefix = `${slideId}::p${placeholderIdx}::`;
+    for (const key of Object.keys(perSlide)) {
+      if (!key.startsWith(prefix)) next[key] = perSlide[key];
+    }
+    set({
+      contentElementIndex: {
+        ...current,
+        [slideId]: next,
+      },
+    });
+  },
+
+  clearContentElementsForSlide: (slideId) => {
+    const current = get().contentElementIndex;
+    if (!current[slideId]) return;
+    const next = { ...current };
+    delete next[slideId];
+    set({ contentElementIndex: next });
+  },
+
+  openEditPopover: (elementIds) =>
+    set({ pendingEditPrompt: { elementIds, text: "" } }),
+  updateEditPromptText: (text) => {
+    const current = get().pendingEditPrompt;
+    if (!current) return;
+    set({ pendingEditPrompt: { ...current, text } });
+  },
+  closeEditPopover: () => set({ pendingEditPrompt: null }),
 
   setCanvasZoom: (z) =>
     set({ canvasZoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) }),

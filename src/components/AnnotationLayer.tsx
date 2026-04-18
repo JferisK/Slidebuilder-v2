@@ -3,6 +3,7 @@ import {
   BoxSelect,
   Crosshair,
   MousePointerSquareDashed,
+  MousePointer2,
   X,
 } from "lucide-react";
 import type {
@@ -10,12 +11,22 @@ import type {
   SlideLayout,
   SlideSize,
 } from "@/parser/pptxParser";
-import { useSlideStore, type AreaRect } from "@/store/slideStore";
+import {
+  useSlideStore,
+  type AreaRect,
+  type ContentElementIndex,
+  type SelectionMode,
+} from "@/store/slideStore";
 import {
   formatElementLabel,
   makeElementId,
   parseElementId,
 } from "@/lib/elementId";
+import {
+  describeContentElement,
+  isContentElementId,
+  parseContentElementId,
+} from "@/lib/contentElementId";
 import {
   formatSlideAspect,
   getRenderSlideSize,
@@ -23,6 +34,9 @@ import {
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tooltip } from "./ui/tooltip";
+import { SelectionEditPopover } from "./SelectionEditPopover";
+
+const DRAG_THRESHOLD_NORM = 0.01;
 
 interface AnnotationLayerProps {
   scale: number;
@@ -91,6 +105,47 @@ function findNearestPlaceholder(
     }
   }
   return best;
+}
+
+/** Content-element ids whose rects overlap the given area (x/y/w/h in 0-1). */
+function findOverlappingContentElementIds(
+  index: ContentElementIndex | undefined,
+  area: { x1: number; y1: number; x2: number; y2: number },
+): string[] {
+  if (!index) return [];
+  const ax1 = Math.min(area.x1, area.x2);
+  const ay1 = Math.min(area.y1, area.y2);
+  const ax2 = Math.max(area.x1, area.x2);
+  const ay2 = Math.max(area.y1, area.y2);
+  const out: string[] = [];
+  for (const id of Object.keys(index)) {
+    const r = index[id].rect;
+    const ex1 = r.x;
+    const ey1 = r.y;
+    const ex2 = r.x + r.w;
+    const ey2 = r.y + r.h;
+    if (ex1 < ax2 && ex2 > ax1 && ey1 < ay2 && ey2 > ay1) out.push(id);
+  }
+  return out;
+}
+
+/** Use document.elementsFromPoint to find a content-element under the cursor,
+ * bypassing the annotation overlay that sits on top of the slide. */
+function findContentElementIdAtPoint(
+  clientX: number,
+  clientY: number,
+  overlay: Element | null,
+): string | null {
+  const els = document.elementsFromPoint(clientX, clientY);
+  for (const el of els) {
+    if (overlay && overlay.contains(el)) continue;
+    const match = (el as Element).closest("[data-content-id]");
+    if (match instanceof HTMLElement) {
+      const id = match.getAttribute("data-content-id");
+      if (id) return id;
+    }
+  }
+  return null;
 }
 
 /** Placeholders whose bounding box overlaps a given area rect (all in %) */
@@ -267,6 +322,19 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     (s) => s.addElementsToSelection,
   );
   const clearElementSelection = useSlideStore((s) => s.clearElementSelection);
+  const contentIndex = useSlideStore(
+    (s) => s.contentElementIndex[slideId],
+  );
+  const pendingEditPrompt = useSlideStore((s) => s.pendingEditPrompt);
+  const openEditPopover = useSlideStore((s) => s.openEditPopover);
+  const closeEditPopover = useSlideStore((s) => s.closeEditPopover);
+
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
+
+  const isMarqueeMode =
+    selectionMode === "unified" ||
+    selectionMode === "area" ||
+    selectionMode === "select";
 
   const [draftPin, setDraftPin] = React.useState<DraftPin | null>(null);
   const [draftArea, setDraftArea] = React.useState<DraftArea | null>(null);
@@ -294,7 +362,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
-    if (selectionMode === "area" || selectionMode === "select") {
+    if (isMarqueeMode) {
       const { xNorm, yNorm } = toSlideCoords(e);
       setDrawingArea(true);
       setDraftArea({
@@ -313,14 +381,102 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     setDraftArea((prev) => (prev ? { ...prev, x2: xNorm, y2: yNorm } : prev));
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!drawingArea || !draftArea) return;
     const dx = Math.abs(draftArea.x2 - draftArea.x1);
     const dy = Math.abs(draftArea.y2 - draftArea.y1);
 
+    if (selectionMode === "unified") {
+      setDrawingArea(false);
+      const additive = draftArea.additive;
+      if (dx < DRAG_THRESHOLD_NORM && dy < DRAG_THRESHOLD_NORM) {
+        // Click (not drag): hit-test content element first, then placeholder,
+        // else fall back to pin placement for empty-space clicks.
+        const contentId = findContentElementIdAtPoint(
+          e.clientX,
+          e.clientY,
+          overlayRef.current,
+        );
+        if (contentId) {
+          if (additive) {
+            if (selectedElementIds.includes(contentId)) {
+              setSelectedElements(
+                selectedElementIds.filter((x) => x !== contentId),
+              );
+            } else {
+              addElementsToSelection([contentId]);
+            }
+          } else {
+            const onlyThis =
+              selectedElementIds.length === 1 &&
+              selectedElementIds[0] === contentId;
+            setSelectedElements(onlyThis ? [] : [contentId]);
+          }
+          setDraftArea(null);
+          return;
+        }
+        const { xNorm, yNorm } = {
+          xNorm: draftArea.x1,
+          yNorm: draftArea.y1,
+        };
+        const hit = findPlaceholderAtPoint(layout, xNorm * 100, yNorm * 100);
+        if (hit) {
+          const id = makeElementId(slideId, hit.idx);
+          if (additive) {
+            if (selectedElementIds.includes(id)) {
+              setSelectedElements(selectedElementIds.filter((x) => x !== id));
+            } else {
+              addElementsToSelection([id]);
+            }
+          } else {
+            const onlyThis =
+              selectedElementIds.length === 1 && selectedElementIds[0] === id;
+            setSelectedElements(onlyThis ? [] : [id]);
+          }
+          setDraftArea(null);
+          return;
+        }
+        // Empty-space click: pin fallback
+        if (!additive) clearElementSelection();
+        setDraftPin({ x: xNorm, y: yNorm });
+        setDraftComment("");
+        setDraftArea(null);
+        return;
+      }
+      // Drag → marquee over both placeholders and content elements.
+      const contentIds = findOverlappingContentElementIds(contentIndex, {
+        x1: draftArea.x1,
+        y1: draftArea.y1,
+        x2: draftArea.x2,
+        y2: draftArea.y2,
+      });
+      const placeholderIds = findOverlappingPlaceholders(layout, {
+        x1: draftArea.x1 * 100,
+        y1: draftArea.y1 * 100,
+        x2: draftArea.x2 * 100,
+        y2: draftArea.y2 * 100,
+      }).map((p) => makeElementId(slideId, p.idx));
+      // Prefer content-level IDs when available; include placeholders only for
+      // placeholders that have no content children in the overlap set.
+      const coveredPlaceholders = new Set(
+        contentIds
+          .map((id) => parseContentElementId(id)?.placeholderIdx)
+          .filter((v): v is number => typeof v === "number"),
+      );
+      const filteredPlaceholderIds = placeholderIds.filter((id) => {
+        const parsed = parseElementId(id);
+        return parsed ? !coveredPlaceholders.has(parsed.idx) : true;
+      });
+      const ids = [...contentIds, ...filteredPlaceholderIds];
+      if (additive) addElementsToSelection(ids);
+      else setSelectedElements(ids);
+      setDraftArea(null);
+      return;
+    }
+
     if (selectionMode === "select") {
       setDrawingArea(false);
-      if (dx < 0.01 && dy < 0.01) {
+      if (dx < DRAG_THRESHOLD_NORM && dy < DRAG_THRESHOLD_NORM) {
         // Treat as empty click → clear selection
         if (!draftArea.additive) clearElementSelection();
         setDraftArea(null);
@@ -340,7 +496,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     }
 
     // area mode (comment on region)
-    if (dx > 0.01 && dy > 0.01) {
+    if (dx > DRAG_THRESHOLD_NORM && dy > DRAG_THRESHOLD_NORM) {
       setDrawingArea(false);
       setDraftComment("");
     } else {
@@ -352,6 +508,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const handleLayerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     if (selectionMode === "area") return; // handled by mousedown/up (area draft)
+    if (selectionMode === "unified") return; // handled by mousedown/up
 
     const { xNorm, yNorm } = toSlideCoords(e);
     const xP = xNorm * 100;
@@ -646,7 +803,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   };
 
   const modeButton = (
-    mode: "pin" | "area" | "select",
+    mode: SelectionMode,
     label: string,
     icon: React.ReactNode,
   ) => (
@@ -676,8 +833,84 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     </Tooltip>
   );
 
+  const hasContentSelection = selectedElementIds.some(isContentElementId);
+  React.useEffect(() => {
+    if (hasContentSelection && !pendingEditPrompt) {
+      openEditPopover(selectedElementIds.filter(isContentElementId));
+    }
+    if (!hasContentSelection && pendingEditPrompt) {
+      closeEditPopover();
+    }
+  }, [
+    hasContentSelection,
+    pendingEditPrompt,
+    selectedElementIds,
+    openEditPopover,
+    closeEditPopover,
+  ]);
+
+  const submitContentEdit = async (intent: string) => {
+    const contentIds = selectedElementIds.filter(isContentElementId);
+    if (contentIds.length === 0) return;
+    const lines: string[] = [
+      "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
+      "",
+      "## Content-Element-Auswahl",
+      `Slide-Id: "${slideId}"`,
+      `Slide-Ordinal: ${slideOrdinal}`,
+      `Layout: "${layout.name}"`,
+      "",
+      "Der User hat auf dem Canvas die folgenden Inhalts-Elemente markiert.",
+      "Jede id hat das Format `<slideId>::p<placeholderIdx>::<domPath>`.",
+      "Bitte Änderungen ausschließlich an diesen Elementen vornehmen und per id referenzieren.",
+      "",
+    ];
+    contentIds.forEach((id, i) => {
+      const entry = contentIndex?.[id];
+      const parsed = parseContentElementId(id);
+      const ph = parsed
+        ? layout.placeholders.find((p) => p.idx === parsed.placeholderIdx)
+        : undefined;
+      lines.push(`  ${i + 1}. id="${id}"`);
+      if (entry) {
+        lines.push(
+          `     type=${entry.type} · ${describeContentElement(entry.type, entry.textContent)}`,
+        );
+        lines.push(`     text="${entry.textContent}"`);
+        lines.push(
+          `     Position (norm): x=${entry.rect.x.toFixed(3)}, y=${entry.rect.y.toFixed(3)}, w=${entry.rect.w.toFixed(3)}, h=${entry.rect.h.toFixed(3)}`,
+        );
+      }
+      if (ph) {
+        const phId = makeElementId(slideId, ph.idx);
+        lines.push(
+          `     Eltern-Platzhalter: id="${phId}", label="${formatElementLabel(slideOrdinal, ph.type, ph.idx)}"`,
+        );
+      }
+    });
+    lines.push("");
+    lines.push("## Gewünschte Änderung");
+    lines.push(`"${intent}"`);
+    lines.push("");
+    lines.push(
+      "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
+      "Referenziere Elemente ausschließlich per `id`.",
+      "Zeige den geänderten Code-Abschnitt.",
+    );
+    const prompt = lines.join("\n").trim();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
+    } catch {
+      showToast("⚠️ Clipboard nicht verfügbar", "error");
+    }
+    closeEditPopover();
+    clearElementSelection();
+  };
+
   return (
     <div
+      ref={overlayRef}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -687,7 +920,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
         inset: 0,
         width: renderSize.width,
         height: renderSize.height,
-        cursor: "crosshair",
+        cursor: selectionMode === "unified" ? "default" : "crosshair",
         zIndex: 10,
       }}
     >
@@ -708,7 +941,12 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {modeButton("pin", "Pin-Modus", <Crosshair size={14} />)}
+        {modeButton(
+          "unified",
+          "Smart-Auswahl (Klick = markieren, Drag = Marquee, Klick ins Leere = Pin)",
+          <MousePointer2 size={14} />,
+        )}
+        {modeButton("pin", "Pin-Modus (nur Kommentare)", <Crosshair size={14} />)}
         {modeButton(
           "area",
           "Bereich kommentieren",
@@ -716,7 +954,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
         )}
         {modeButton(
           "select",
-          "Elemente auswählen (Marquee)",
+          "Elemente auswählen (Marquee, nur Platzhalter)",
           <BoxSelect size={14} />,
         )}
       </div>
@@ -846,6 +1084,14 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
           )}
         </>
       )}
+
+      {/* Content-element selection popover */}
+      <SelectionEditPopover
+        slideId={slideId}
+        slideIndex={activeSlideIndex}
+        renderSize={renderSize}
+        onSubmit={submitContentEdit}
+      />
 
       {/* Draft: pin */}
       {draftPin && (

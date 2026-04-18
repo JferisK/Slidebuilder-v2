@@ -12,6 +12,56 @@ import {
   makeElementId,
 } from "@/lib/elementId";
 import { getRenderSlideSize } from "@/lib/slideSize";
+import {
+  useElementInstrumentation,
+  type ContentElementMeta,
+} from "@/hooks/useElementInstrumentation";
+import { useSlideStore } from "@/store/slideStore";
+
+const PlaceholderSlot: React.FC<{
+  slideId: string | undefined;
+  placeholderIdx: number;
+  disabled: boolean;
+  children: React.ReactNode;
+  style: React.CSSProperties;
+  extraProps: Record<string, unknown>;
+}> = ({ slideId, placeholderIdx, disabled, children, style, extraProps }) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const setContentElementsForPlaceholder = useSlideStore(
+    (s) => s.setContentElementsForPlaceholder,
+  );
+  const clearContentElementsForPlaceholder = useSlideStore(
+    (s) => s.clearContentElementsForPlaceholder,
+  );
+
+  const onEntries = React.useCallback(
+    (entries: ContentElementMeta[]) => {
+      if (!slideId) return;
+      setContentElementsForPlaceholder(slideId, placeholderIdx, entries);
+    },
+    [slideId, placeholderIdx, setContentElementsForPlaceholder],
+  );
+
+  const onUnmount = React.useCallback(() => {
+    if (!slideId) return;
+    clearContentElementsForPlaceholder(slideId, placeholderIdx);
+  }, [slideId, placeholderIdx, clearContentElementsForPlaceholder]);
+
+  useElementInstrumentation({
+    containerRef: ref,
+    slideId,
+    placeholderIdx,
+    disabled,
+    onEntries,
+    onUnmount,
+  });
+
+  return (
+    <div ref={ref} style={style} {...extraProps}>
+      {children}
+    </div>
+  );
+};
 
 export interface DynamicSlideProps {
   layout: SlideLayout;
@@ -184,6 +234,8 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   const renderSize = getRenderSlideSize(slideSize);
   return (
     <div
+      data-slide-root="true"
+      data-slide-id={slideId}
       style={{
         width: renderSize.width,
         height: renderSize.height,
@@ -230,13 +282,11 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
             : {};
 
         return (
-          <div
+          <PlaceholderSlot
             key={`${placeholder.idx}-${placeholder.type}`}
-            data-placeholder-idx={placeholder.idx}
-            data-placeholder-type={placeholder.type}
-            data-element-id={elementId}
-            data-selection-order={isSelected ? selectionOrder + 1 : undefined}
-            data-code-slot={hasSlot ? "true" : undefined}
+            slideId={slideId}
+            placeholderIdx={placeholder.idx}
+            disabled={isExporting}
             style={{
               position: "absolute",
               left: `${placeholder.position.x}%`,
@@ -249,6 +299,13 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
               justifyContent: "flex-start",
               overflow: "hidden",
               ...outlineStyle,
+            }}
+            extraProps={{
+              "data-placeholder-idx": placeholder.idx,
+              "data-placeholder-type": placeholder.type,
+              "data-element-id": elementId,
+              "data-selection-order": isSelected ? selectionOrder + 1 : undefined,
+              "data-code-slot": hasSlot ? "true" : undefined,
             }}
           >
             {Slot ? (
@@ -294,7 +351,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                 {hasSlot && !isSelected && <span>· code</span>}
               </span>
             )}
-          </div>
+          </PlaceholderSlot>
         );
       })}
     </div>
