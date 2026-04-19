@@ -164,9 +164,10 @@ Slide creation follows a **review loop**, not a single prompt. Based on how pro 
 | **Narrative Director** | [`docs/roles/narrative-director.md`](docs/roles/narrative-director.md) | Decide *what* is said and *in what hierarchy*. Pyramid Principle (Minto), content reduction. | Rejects if brief is unclear or content exceeds one slide. |
 | **Visual Director** | [`docs/roles/visual-director.md`](docs/roles/visual-director.md) | Pick the right CodeSlide template, map content to slots, balance composition. | Rejects if no template fits or slots overflow. |
 | **Brand Guardian (CD)** | [`docs/roles/brand-guardian.md`](docs/roles/brand-guardian.md) | Enforce §3 Theme Contract — every color, font, dimension via `var(--slide-*)`. | Rejects any hardcoded color, raw hex, or fixed pixel width. |
+| **Visual Stylist** | [`docs/roles/visual-stylist.md`](docs/roles/visual-stylist.md) | Critique and improve visual drama, hierarchy, screenshot readability, and visualization opportunities. Proposes illustration/icon/placeholder prompts when assets are missing. | Rejects visually flat, dashboard-like, or unreadable compositions. |
 | **QA Lead** | [`docs/roles/qa-lead.md`](docs/roles/qa-lead.md) | Final gate. All 3 above signed off? Brief answered? Approve, loop back, or escalate. | Escalates to user after 3 loops. |
 
-**Flow:** user brief → Narrative → Visual → Brand → QA → (loop on fail) → result. Max 3 loops per slide.
+**Flow:** user brief → Narrative → Visual → Brand → Visual Stylist / Screenshot Review → QA → (loop on fail) → result. Max 3 loops per slide.
 
 ### Mandatory review additions
 
@@ -194,6 +195,7 @@ When a slide is in **dense handout** mode:
 Platform-neutral skill specs live in `docs/skills/` and are referenced by every platform adapter:
 
 - [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the 4-role loop.
+- [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the full review loop, including fit/screenshot and visual styling.
 - [`docs/skills/load-template-context.md`](docs/skills/load-template-context.md) — read active PPTX theme + layouts.
 - [`docs/skills/validate-against-theme.md`](docs/skills/validate-against-theme.md) — scan a diff/file for Theme Contract violations.
 
@@ -203,8 +205,8 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 
 | Platform | Roles | Skills | Orchestrator |
 |---|---|---|---|
-| **Claude Code** | `.claude/agents/{narrative-director,visual-director,brand-guardian,qa-lead}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
-| **GitHub Copilot** | `.github/chatmodes/{narrative-director,visual-director,brand-guardian,qa-lead}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
+| **Claude Code** | `.claude/agents/{narrative-director,visual-director,brand-guardian,visual-stylist,qa-lead}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
+| **GitHub Copilot** | `.github/chatmodes/{narrative-director,visual-director,brand-guardian,visual-stylist,qa-lead}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
 **Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 4 checks** — narrative clarity, template fit, theme compliance, brief alignment — before presenting output.
