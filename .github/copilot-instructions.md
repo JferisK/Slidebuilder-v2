@@ -24,6 +24,11 @@ For slides mapped into real PPTX layouts, fit is a hard gate:
 - dense handout slides may carry more text, but they still must fit cleanly
 - screenshot-backed review is preferred when available
 
+If the user explicitly rejects a selected intro/summary block, do not recreate it in slightly different words.
+- no new generic lead summary
+- either remove the block, add real source-backed depth, or replace it with a different information structure
+- this rule applies even if the rewritten summary sounds shorter or more polished
+
 ### Reference example
 `src/slides/templates/24-PyramidHierarchy.tsx` is the canonical theme-aware slide. Match its pattern (inline `style={{ backgroundColor: "var(--slide-accent)" }}`, responsive `%` widths, `color-mix()` for tints) when authoring or modifying templates.
 
@@ -42,3 +47,4 @@ Prefer existing repo UI patterns before inventing one-off wrappers:
 - Suggesting `bg-<color>-<shade>` Tailwind classes inside `src/slides/templates/**`.
 - Adding `width: "Npx"` / `height: "Npx"` to slide templates.
 - Creating a `.tsx` slide without registering it in `src/slides/registry.ts`.
+- Replacing an explicitly rejected summary/intro block with another paraphrased summary/intro block.

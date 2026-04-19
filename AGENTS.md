@@ -272,3 +272,4 @@ No test runner configured. Verification is manual: load a PPTX, visually check s
 - `width: "400px"`, `height: "300px"` inside slide templates → **violates §4**.
 - A new `.tsx` slide that doesn't register in `src/slides/registry.ts` → will not appear in the picker.
 - Slot `key` values that conflict with existing semantic keys elsewhere (e.g. `"body"` vs `"content"`) → pick the already-used one for consistency.
+- If the user explicitly rejects a marked intro/summary block, do **not** replace it with another generic paraphrasing summary. Remove it, deepen it, or replace it with a structurally different block that adds real informational value.

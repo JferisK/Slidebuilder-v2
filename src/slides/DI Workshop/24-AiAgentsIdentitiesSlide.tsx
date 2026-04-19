@@ -1,45 +1,67 @@
 import * as React from "react";
 import type { CodeSlide } from "../types";
-import { PALETTE, StandardTitle, mix } from "./_shared";
+import {
+  DenseEditorialCard,
+  DenseStatementStrip,
+  EditorialLeadBand,
+  PALETTE,
+  StandardTitle,
+  SurfacePanel,
+  SectionLead,
+  mix,
+} from "./_shared";
 
 const TitleSlot: React.FC = () => (
   <StandardTitle
     eyebrow="Operating Model für neue Identitäten"
     title="AI Agents und nicht-menschliche Identitäten"
+    tags={[
+      { label: "Machine Identities", tone: "signal" },
+      { label: "Scoped Access", tone: "trust" },
+    ]}
   />
 );
 
-const BulletRow: React.FC<{
+const IdentityTile: React.FC<{
+  title: string;
   text: string;
-  tone: "primary" | "trust" | "signal";
-}> = ({ text, tone }) => {
-  const color = tone === "primary" ? PALETTE.primary : tone === "trust" ? PALETTE.trust : PALETTE.signal;
+  tone: "primary" | "trust" | "signal" | "deep";
+}> = ({ title, text, tone }) => {
+  const color =
+    tone === "trust"
+      ? PALETTE.trust
+      : tone === "signal"
+        ? PALETTE.signal
+        : tone === "deep"
+          ? PALETTE.deep
+          : PALETTE.primary;
 
   return (
     <div
       style={{
+        borderRadius: 18,
+        padding: "10px 11px",
+        background: mix(color, PALETTE.bg, 10),
+        border: `1px solid ${mix(color, "transparent", 26)}`,
         display: "grid",
-        gridTemplateColumns: "10px 1fr",
-        gap: 10,
-        alignItems: "start",
-        padding: "8px 0",
-        borderBottom: `1px solid ${mix(color, PALETTE.bg, 74)}`,
+        gap: 4,
       }}
     >
       <div
         style={{
-          width: 8,
-          height: 8,
-          borderRadius: 999,
-          marginTop: 5,
-          background: color,
+          color,
+          fontSize: 10,
+          lineHeight: 1.1,
+          fontFamily: PALETTE.heading,
         }}
-      />
+      >
+        {title}
+      </div>
       <div
         style={{
           color: PALETTE.text,
-          fontSize: 14,
-          lineHeight: 1.24,
+          fontSize: 10,
+          lineHeight: 1.18,
           fontFamily: PALETTE.body,
         }}
       >
@@ -49,72 +71,70 @@ const BulletRow: React.FC<{
   );
 };
 
-const ColumnCard: React.FC<{
-  eyebrow: string;
+const ControlStrip: React.FC<{
+  step: string;
   title: string;
-  tone: "primary" | "signal";
-  intro?: string;
-  rows: Array<{
-    text: string;
-    tone: "primary" | "trust" | "signal";
-  }>;
-}> = ({ eyebrow, title, tone, intro, rows }) => {
-  const color = tone === "primary" ? PALETTE.primary : PALETTE.signal;
+  text: string;
+  tone: "primary" | "trust" | "signal" | "deep";
+}> = ({ step, title, text, tone }) => {
+  const color =
+    tone === "trust"
+      ? PALETTE.trust
+      : tone === "signal"
+        ? PALETTE.signal
+        : tone === "deep"
+          ? PALETTE.deep
+          : PALETTE.primary;
 
   return (
     <div
       style={{
-        borderRadius: 20,
-        padding: "4.8% 5%",
-        background: mix(color, PALETTE.bg, 10),
-        border: `2px solid ${mix(color, PALETTE.bg, 58)}`,
         display: "grid",
-        gridTemplateRows: intro ? "auto auto auto 1fr" : "auto auto 1fr",
+        gridTemplateColumns: "46px 1fr",
         gap: 8,
-        height: "100%",
+        padding: "8px 10px",
+        borderRadius: 16,
+        background: mix(color, PALETTE.bg, 10),
+        border: `1px solid ${mix(color, "transparent", 26)}`,
       }}
     >
       <div
         style={{
-          fontSize: 11,
-          textTransform: "uppercase",
-          letterSpacing: "0.16em",
+          height: 28,
+          borderRadius: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           color,
-          fontFamily: PALETTE.body,
-        }}
-      >
-        {eyebrow}
-      </div>
-      <div
-        style={{
-          color: PALETTE.text,
-          fontSize: 19,
-          lineHeight: 1.08,
+          background: mix(color, PALETTE.bg, 16),
+          fontSize: 14,
+          lineHeight: 1,
           fontFamily: PALETTE.heading,
         }}
       >
-        {title}
+        {step}
       </div>
-      {intro ? (
+      <div style={{ display: "grid", gap: 3 }}>
         <div
           style={{
-            borderRadius: 14,
-            padding: "10px 12px",
-            background: mix(PALETTE.bg, color, 12),
-            border: `2px solid ${mix(color, PALETTE.bg, 62)}`,
+            color,
+            fontSize: 13,
+            lineHeight: 1.08,
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
             color: PALETTE.text,
-            fontSize: 14,
-            lineHeight: 1.22,
+            fontSize: 10,
+            lineHeight: 1.18,
             fontFamily: PALETTE.body,
           }}
         >
-          {intro}
+          {text}
         </div>
-      ) : null}
-      <div style={{ display: "grid" }}>
-        {rows.map((row) => (
-          <BulletRow key={row.text} text={row.text} tone={row.tone} />
-        ))}
       </div>
     </div>
   );
@@ -124,81 +144,193 @@ const BodySlot: React.FC = () => (
   <div
     style={{
       height: "100%",
-      display: "grid",
-      gap: 10,
-      gridTemplateRows: "auto 1fr auto",
-      borderRadius: 24,
-      padding: "2.2%",
-      background: `linear-gradient(180deg, ${mix(PALETTE.bg, PALETTE.secondary, 94)}, ${mix(
+        display: "grid",
+        gridTemplateRows: "auto 1fr auto",
+      gap: 8,
+      padding: "1.1%",
+      borderRadius: 18,
+      background: `linear-gradient(180deg, ${mix(PALETTE.bg, PALETTE.secondary, 93)}, ${mix(
         PALETTE.signal,
         PALETTE.bg,
-        6,
+        5,
       )})`,
-      border: `2px solid ${mix(PALETTE.primary, PALETTE.bg, 60)}`,
+      border: `1px solid ${mix(PALETTE.primary, "transparent", 18)}`,
     }}
   >
-    <div
-      style={{
-        borderRadius: 16,
-        padding: "10px 14px",
-        background: mix(PALETTE.deep, PALETTE.bg, 12),
-        border: `2px solid ${mix(PALETTE.deep, PALETTE.bg, 54)}`,
-        color: PALETTE.bg,
-        fontSize: 15,
-        lineHeight: 1.22,
-        fontFamily: PALETTE.heading,
-      }}
-    >
-      AI Agents sind nicht nur Tools, sondern eine neue Identitaetsklasse mit eigenen Rechten und Risiken.
-    </div>
+    <EditorialLeadBand tone="deep" style={{ fontSize: 14, lineHeight: 1.18, padding: "12px 16px" }}>
+      AI Agents sind keine weiteren Servicekonten, sondern handelnde Identitaeten. Sie nutzen
+      Tools, Daten und Aktionen in wechselnden Kontexten und brauchen deshalb klare Identitaet,
+      Verantwortung, Scope, Logging und Lifecycle.
+    </EditorialLeadBand>
 
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 12,
+        gridTemplateColumns: "0.95fr 1.05fr",
+        gap: 10,
         minHeight: 0,
       }}
     >
-      <ColumnCard
-        eyebrow="Neue Realitaet"
-        title="Was neu ist"
-        tone="primary"
-        intro="Services, Bots, Skripte und AI Agents handeln als Identitaeten."
-        rows={[
-          { text: "Jeder Agent braucht eine eigene Identitaet", tone: "primary" },
-          { text: "Jeder Agent braucht eine verantwortliche Person", tone: "trust" },
-          { text: "Agenten muessen klar von anderen Rollen und Konten getrennt werden", tone: "signal" },
-        ]}
-      />
-      <ColumnCard
-        eyebrow="Was IAM dafuer leisten muss"
-        title="Welche Steuerung noetig ist"
-        tone="signal"
-        rows={[
-          { text: "Enge, aufgabenspezifische Rechte statt breitem Zugriff", tone: "primary" },
-          { text: "Klare Kontrolle ueber Tools, Daten und Aktionen", tone: "trust" },
-          { text: "Logging und Nachvollziehbarkeit fuer das Handeln des Agents", tone: "signal" },
-          { text: "Lifecycle von Registrierung bis Aenderung und Abschaltung", tone: "primary" },
-        ]}
-      />
+      <SurfacePanel tone="primary" className="grid h-full min-h-0 grid-rows-[auto_auto_1fr] gap-2 p-2.5">
+        <SectionLead
+          eyebrow="Neue Identitaetsrealitaet"
+          title="Was an Agents anders ist"
+          text="Der naechste Mitarbeiter oder Kunde kann AI sein. Das macht Identity-first Security breiter und schwieriger."
+          tone="primary"
+        />
+        <DenseEditorialCard
+          tone="deep"
+          density="tight"
+          style={{
+            display: "grid",
+            gap: 4,
+            background:
+              "linear-gradient(140deg, color-mix(in srgb, var(--slide-text) 88%, var(--slide-bg)), color-mix(in srgb, var(--slide-primary) 62%, var(--slide-text)))",
+            color: "var(--slide-bg)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 9,
+              textTransform: "uppercase",
+              letterSpacing: "0.14em",
+              color: mix(PALETTE.bg, "transparent", 72),
+              fontFamily: PALETTE.heading,
+            }}
+          >
+            Hero-Objekt
+          </div>
+          <div
+            style={{
+              fontSize: 18,
+              lineHeight: 1.02,
+              fontFamily: PALETTE.heading,
+            }}
+          >
+            AGENT ID
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              lineHeight: 1.2,
+              color: mix(PALETTE.bg, "transparent", 90),
+              fontFamily: PALETTE.body,
+            }}
+          >
+            Nicht Tool, sondern handelnde Identitaet mit Owner, Scope, Protokoll und Abschaltpunkt.
+          </div>
+        </DenseEditorialCard>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+            alignContent: "start",
+            minHeight: 0,
+          }}
+        >
+          <IdentityTile
+            title="Eigene IDs"
+            text="Jeder Agent braucht eine klar trennbare Identitaet statt impliziter Sammelkonten."
+            tone="primary"
+          />
+          <IdentityTile
+            title="Sponsor"
+            text="Zu jedem Agenten gehoert eine verantwortliche Person oder Rolle."
+            tone="trust"
+          />
+          <IdentityTile
+            title="Scope"
+            text="Der Agent braucht nur die Tools, Daten und Aktionen, die seine Aufgabe wirklich verlangt."
+            tone="signal"
+          />
+          <IdentityTile
+            title="Dynamik"
+            text="Agenten koennen schneller, breiter und kontextabhaengiger handeln als klassische Servicekonten."
+            tone="deep"
+          />
+        </div>
+      </SurfacePanel>
+
+      <SurfacePanel tone="signal" className="grid h-full min-h-0 grid-rows-[auto_1fr] gap-2 p-2.5">
+        <SectionLead
+          eyebrow="Governance-Modell"
+          title="Welche Steuerung sichtbar mitgedacht werden muss"
+          text="Scope ist mehr als Login: Entscheidend sind Tool-Zugriffe, Datenumfang, Aktionen, Kontext und kurzlebige Rechte."
+          tone="signal"
+        />
+        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: "1fr auto", gap: 8 }}>
+          <div style={{ minHeight: 0, overflow: "hidden", display: "grid", alignContent: "start", gap: 8 }}>
+            <ControlStrip
+              step="01"
+              title="Ownership + Delegation"
+              text="Pro Agent ein Sponsor, klare Verantwortung und nachvollziehbare Delegation statt anonymer Automatisierung."
+              tone="trust"
+            />
+            <ControlStrip
+              step="02"
+              title="Granularer Scope"
+              text="Nicht nur Login erlauben, sondern Tools, Daten, Aktionen und Kontext separat begrenzen."
+              tone="primary"
+            />
+            <ControlStrip
+              step="03"
+              title="Kurzlebige Rechte + Lifecycle"
+              text="Fein granulare, delegierte und moeglichst kurzlebige Credentials; Registrierung, Rezertifizierung und Abschaltung inklusive."
+              tone="signal"
+            />
+          </div>
+          <DenseEditorialCard
+            tone="trust"
+            density="tight"
+            style={{
+              display: "grid",
+              gap: 5,
+              background:
+                "linear-gradient(180deg, color-mix(in srgb, var(--slide-accent) 10%, var(--slide-bg)), color-mix(in srgb, var(--slide-secondary) 74%, var(--slide-bg)))",
+            }}
+          >
+            <div
+              style={{
+                color: PALETTE.trust,
+                fontSize: 9,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                fontFamily: PALETTE.heading,
+              }}
+            >
+              Risikoformel
+            </div>
+            <div
+              style={{
+                color: PALETTE.text,
+                fontSize: 14,
+                lineHeight: 1.16,
+                fontFamily: PALETTE.heading,
+              }}
+            >
+              Agent Sprawl + Oversharing + fehlende Governance erzeugen neue Angriffswege.
+            </div>
+            <div
+              style={{
+                color: PALETTE.text,
+                fontSize: 11,
+                lineHeight: 1.24,
+                fontFamily: PALETTE.body,
+              }}
+            >
+              Gute Steuerung startet mit vertrauenswuerdigen, klar begrenzten Use Cases und skaliert
+              erst dann.
+            </div>
+          </DenseEditorialCard>
+        </div>
+      </SurfacePanel>
     </div>
 
-    <div
-      style={{
-        borderRadius: 14,
-        padding: "9px 12px",
-        background: mix(PALETTE.secondary, PALETTE.bg, 54),
-        border: `1px solid ${mix(PALETTE.primary, PALETTE.bg, 72)}`,
-        color: PALETTE.text,
-        fontSize: 13,
-        lineHeight: 1.2,
-        fontFamily: PALETTE.heading,
-        textAlign: "center",
-      }}
-    >
-      AI Agents brauchen eigene Identitaet, klares Ownership und kontrollierten Scope ueber den gesamten Lifecycle.
-    </div>
+    <DenseStatementStrip tone="signal" style={{ fontSize: 12, lineHeight: 1.06, padding: "6px 10px" }}>
+      AI Agents brauchen kein Sondermarketing, sondern sauberes IAM: eigene Identitaet, menschliche
+      Verantwortung, enge Rechte, kontrollierte Tool-Zugriffe und einen vollstaendigen Lifecycle.
+    </DenseStatementStrip>
   </div>
 );
 

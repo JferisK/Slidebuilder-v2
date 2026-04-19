@@ -10,6 +10,7 @@ import {
   type AreaRect,
   type ContentElementIndex,
 } from "@/store/slideStore";
+import type { ContentElementMeta } from "@/hooks/useElementInstrumentation";
 import {
   formatElementLabel,
   makeElementId,
@@ -188,6 +189,7 @@ function buildCopilotPrompt({
   slideOrdinal,
   slideSize,
   codeSlideId,
+  selectedContentElements,
 }: {
   masterName: string;
   layoutName: string;
@@ -202,6 +204,7 @@ function buildCopilotPrompt({
   slideOrdinal: number;
   slideSize?: SlideSize;
   codeSlideId?: string;
+  selectedContentElements: ContentElementMeta[];
 }): string {
   const renderSize = getRenderSlideSize(slideSize);
   const lines: string[] = [
@@ -255,6 +258,38 @@ function buildCopilotPrompt({
     );
     lines.push("");
   }
+  if (selectedContentElements.length > 0) {
+    lines.push("## Content-Element-Auswahl");
+    lines.push(
+      "Der User hat auf dem Canvas die folgenden Inhalts-Elemente markiert.",
+    );
+    lines.push(
+      "Jede id hat das Format `<slideId>::p<placeholderIdx>::<domPath>`.",
+    );
+    lines.push(
+      "Bitte Änderungen ausschließlich an diesen Elementen vornehmen und per id referenzieren.",
+    );
+    lines.push("");
+    selectedContentElements.forEach((entry, index) => {
+      const parentPlaceholderId = `${slideId}::${entry.placeholderIdx}`;
+      const parentPlaceholder = layoutPlaceholders.find(
+        (p) => p.idx === entry.placeholderIdx,
+      );
+      const parentLabel = parentPlaceholder
+        ? formatElementLabel(slideOrdinal, parentPlaceholder.type, parentPlaceholder.idx)
+        : `S${slideOrdinal}·?#${entry.placeholderIdx}`;
+      lines.push(`  ${index + 1}. id="${entry.id}"`);
+      lines.push(`     type=${entry.type}  ${describeContentElement(entry.type, entry.textContent)}`);
+      lines.push(`     text="${entry.textContent}"`);
+      lines.push(
+        `     Position (norm): x=${entry.rect.x.toFixed(3)}, y=${entry.rect.y.toFixed(3)}, w=${entry.rect.w.toFixed(3)}, h=${entry.rect.h.toFixed(3)}`,
+      );
+      lines.push(
+        `     Eltern-Platzhalter: id="${parentPlaceholderId}", label="${parentLabel}"`,
+      );
+      lines.push("");
+    });
+  }
   lines.push("## Alle Placeholders in diesem Layout");
 
   for (const p of layoutPlaceholders) {
@@ -281,6 +316,16 @@ function buildCopilotPrompt({
   lines.push("## Feedback");
   lines.push(`"${comment}"`);
   lines.push("");
+  if (selectedContentElements.length > 0) {
+    lines.push("## Änderungsregel für markierte Content-Elemente");
+    lines.push(
+      "Wenn ein markierter Block als generische Zusammenfassung / Intro-Zusammenfassung kritisiert wird, darf er NICHT durch eine neue paraphrasierende Zusammenfassung ersetzt werden.",
+    );
+    lines.push(
+      "Stattdessen: den markierten Block entfernen, substanziell fachlich vertiefen oder durch eine andere konkrete Struktur mit neuem Informationswert ersetzen.",
+    );
+    lines.push("");
+  }
   lines.push(
     "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
     "Referenziere Elemente ausschließlich per `id`.",
@@ -464,6 +509,18 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     return out;
   }, [selectedElementIds, slideId, layout.placeholders]);
 
+  const selectedContentElements = React.useMemo<ContentElementMeta[]>(() => {
+    const out: ContentElementMeta[] = [];
+    for (const id of selectedElementIds) {
+      if (!isContentElementId(id)) continue;
+      const parsed = parseContentElementId(id);
+      if (!parsed || parsed.slideId !== slideId) continue;
+      const entry = contentIndex?.[id];
+      if (entry) out.push(entry);
+    }
+    return out;
+  }, [selectedElementIds, slideId, contentIndex]);
+
   const submitDraft = async () => {
     const comment = draftComment.trim();
     if (!comment) {
@@ -490,6 +547,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       slideOrdinal,
       slideSize,
       codeSlideId,
+      selectedContentElements,
     });
 
     try {

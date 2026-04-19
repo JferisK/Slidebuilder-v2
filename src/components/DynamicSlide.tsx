@@ -11,6 +11,10 @@ import {
   formatElementLabel,
   makeElementId,
 } from "@/lib/elementId";
+import {
+  isContentElementId,
+  parseContentElementId,
+} from "@/lib/contentElementId";
 import { getRenderSlideSize } from "@/lib/slideSize";
 import {
   useElementInstrumentation,
@@ -250,10 +254,21 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
         const elementId = slideId
           ? makeElementId(slideId, placeholder.idx)
           : undefined;
+        const selectedContentElementIds = slideId
+          ? selectedList.filter((id) => {
+              if (!isContentElementId(id)) return false;
+              const parsed = parseContentElementId(id);
+              return (
+                parsed?.slideId === slideId &&
+                parsed.placeholderIdx === placeholder.idx
+              );
+            })
+          : [];
         const selectionOrder = elementId
           ? selectedList.indexOf(elementId)
           : -1;
-        const isSelected = selectionOrder >= 0;
+        const isSelected =
+          selectionOrder >= 0 || selectedContentElementIds.length > 0;
         const Slot = codeSlots?.[String(placeholder.idx)];
         const hasSlot = Boolean(Slot);
         const label = formatElementLabel(
@@ -304,12 +319,23 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
               "data-placeholder-idx": placeholder.idx,
               "data-placeholder-type": placeholder.type,
               "data-element-id": elementId,
+              "data-selected-content-element-ids":
+                selectedContentElementIds.length > 0
+                  ? JSON.stringify(selectedContentElementIds)
+                  : undefined,
               "data-selection-order": isSelected ? selectionOrder + 1 : undefined,
               "data-code-slot": hasSlot ? "true" : undefined,
             }}
           >
             {Slot ? (
-              <div style={{ width: "100%", height: "100%" }}>
+              <div
+                style={{ width: "100%", height: "100%" }}
+                data-selected-content-element-ids={
+                  selectedContentElementIds.length > 0
+                    ? JSON.stringify(selectedContentElementIds)
+                    : undefined
+                }
+              >
                 <Slot />
               </div>
             ) : (

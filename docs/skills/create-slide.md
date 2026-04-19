@@ -90,6 +90,7 @@ If screenshot generation is unavailable, treat the slide as **not yet fully veri
 - [ ] Screenshot/render output was reviewed when available.
 - [ ] On escalation, the diagnostic is presented to the user — the orchestrator does not silently retry or silently accept.
 - [ ] Final approved output uses `var(--slide-*)` (Brand Guardian would have rejected otherwise, but double-check).
+- [ ] If the user explicitly rejected a selected intro/summary block, no later loop reintroduces the same content as a paraphrased summary.
 
 ## Do not
 
@@ -98,3 +99,4 @@ If screenshot generation is unavailable, treat the slide as **not yet fully veri
 - Merge roles into one prompt. The separation is the value — one role's blind spot is another role's focus.
 - Let the loop exceed 3 iterations silently. Escalate.
 - Fabricate theme values if no PPTX is loaded. Refuse and ask the user to upload first.
+- Reintroduce an explicitly rejected intro/summary block as a cleaner or shorter summary. Replace it structurally or deepen it.

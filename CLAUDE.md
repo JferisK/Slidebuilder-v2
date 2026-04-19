@@ -25,6 +25,11 @@ For slides that map into a real PPTX layout, treat placeholder fit as a hard gat
 - prefer screenshot-backed approval when a render can be generated
 - dense handout slides must still fit without clipping
 
+If the user explicitly rejects a selected intro/summary block, do not reintroduce it in paraphrased form.
+- no replacement with another generic summary
+- either remove it, deepen it with real source content, or replace it with a structurally different block
+- this applies even if the new wording sounds cleaner
+
 ### Reference example
 `src/slides/templates/24-PyramidHierarchy.tsx` is the **canonical good example** of a theme-aware slide. When authoring a new template, read it first, then mirror the pattern.
 
@@ -44,3 +49,4 @@ Prefer existing repo UI patterns before inventing ad hoc slide shells:
 - Don't invent new CSS variables — the 8 in `theme.cssVars` are the only allowed color/type tokens.
 - Don't add a `variant` value to `WireBlock` without updating `_shared.tsx` variantStyles.
 - Don't answer slide questions without first checking the uploaded master's theme (available in `buildCopilotPrompt` output or `slideStore.masters[activeMasterId].theme`).
+- Don't replace an explicitly rejected summary/intro block with a new summary/intro block that says the same thing more elegantly.
