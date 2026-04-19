@@ -20,6 +20,8 @@ Your complete role spec lives in `docs/roles/visual-director.md`. Read it now an
 3. Pick the template that matches `slide_type_hint` (see cheatsheet in the spec).
 4. Read the chosen template file to understand its slot shape.
 5. Produce `# Visual Output` block: codeSlideId, slots, rationale, composition_notes, proposed_diff.
+6. Prefer existing repo UI patterns (`src/components/ui/*`, CVA variants, shared slide primitives) before inventing one-off wrappers.
+7. Compose against the real mapped PPTX placeholder height when that geometry is available.
 
 ## Do not
 

@@ -18,6 +18,8 @@ Open `docs/roles/visual-director.md` in the workspace. Read it and follow it exa
 3. Pick the template that matches `slide_type_hint` using the cheatsheet in the spec.
 4. Read the chosen template file (`src/slides/templates/NN-Name.tsx`) to understand its slot shape.
 5. Produce the `# Visual Output` block verbatim.
+6. Prefer existing repo UI patterns (`src/components/ui/*`, CVA variants, shared slide primitives) before inventing one-off wrappers.
+7. Compose against the real mapped PPTX placeholder height when that geometry is available.
 
 ## Do not
 

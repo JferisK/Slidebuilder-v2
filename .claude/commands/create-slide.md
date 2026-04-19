@@ -22,7 +22,8 @@ Follow the canonical orchestrator spec at `docs/skills/create-slide.md`.
    b. Dispatch `visual-director` with the Narrative Output verbatim. Capture the `# Visual Output`.
    c. Dispatch `brand-guardian` with the Visual Output. Capture the `# Brand Verdict`.
       - On `reject`: loop back to `visual-director` with the violation list. Increment loop_count. Re-enter step (c) after visual re-emits.
-   d. Dispatch `qa-lead` with all 3 prior outputs + the original brief + loop_count. Capture `# QA Verdict`.
+   d. Run a real fit/screenshot check against the mapped PPTX layout when available.
+   e. Dispatch `qa-lead` with all prior outputs + fit/screenshot result + the original brief + loop_count. Capture `# QA Verdict`.
 
 3. **On QA `approve`**: present the final slide output + a short process summary to the user. Done.
 
@@ -33,3 +34,4 @@ Follow the canonical orchestrator spec at `docs/skills/create-slide.md`.
 ## Output
 
 Never fabricate a "done" slide if the gates didn't pass. Never skip a role because the slide looks simple. The separation is the value.
+Never approve a slide without checking the real mapped placeholder fit when that information is available.

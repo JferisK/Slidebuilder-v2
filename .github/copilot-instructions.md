@@ -17,6 +17,12 @@ Run these four mental checks from `AGENTS.md` §7 before completing any suggesti
 
 A suggestion that violates §3 of AGENTS.md (Theme Contract) is wrong even if it compiles.
 
+For slides mapped into real PPTX layouts, fit is a hard gate:
+- use the real title/body placeholder geometry from prompt/context
+- do not assume a free preview equals the real layout
+- dense handout slides may carry more text, but they still must fit cleanly
+- screenshot-backed review is preferred when available
+
 ### Reference example
 `src/slides/templates/24-PyramidHierarchy.tsx` is the canonical theme-aware slide. Match its pattern (inline `style={{ backgroundColor: "var(--slide-accent)" }}`, responsive `%` widths, `color-mix()` for tints) when authoring or modifying templates.
 
@@ -25,6 +31,11 @@ A suggestion that violates §3 of AGENTS.md (Theme Contract) is wrong even if it
 - **Inline Chat** with a slide template file open → propose changes that honor the Theme Contract.
 - **Chat Modes (Stage 3, planned):** Brand Guardian, Narrative Director, Visual Director, QA Lead — will live in `.github/chatmodes/`.
 - **Prompts (Stage 3, planned):** `/create-slide` in `.github/prompts/create-slide.prompt.md`.
+
+Prefer existing repo UI patterns before inventing one-off wrappers:
+- `src/components/ui/*`
+- CVA-based variants
+- shared slide primitives in `_shared.tsx`
 
 ### Red flags to refuse
 - Suggesting `bg-<color>-<shade>` Tailwind classes inside `src/slides/templates/**`.

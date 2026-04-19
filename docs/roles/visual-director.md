@@ -11,6 +11,7 @@ A clear narrative rendered in the wrong template lies to the reader. A pyramid n
 ## Inputs
 - **Narrative Output** (from Narrative Director): headline, key_statements, slide_type_hint, audience, tone.
 - **Template context**: layout + theme CSS vars from the loaded PPTX.
+- **Real placeholder geometry**: mapped title/body placeholder dimensions and ids when available.
 - **CodeSlide registry**: `src/slides/registry.ts` — all available templates (currently 25).
 
 ## Outputs (structured handoff to Brand Guardian)
@@ -32,13 +33,16 @@ proposed_diff: "<the actual code change or new file content>"
 - [ ] **Template matches `slide_type_hint`** or has a documented reason to deviate.
 - [ ] **Every slot filled** — or intentionally omitted with a note explaining why.
 - [ ] **Text fits slot bounds.** Title ≤ 60 chars. Body bullets ≤ 80 chars each. If content overflows, either shorten (back to Narrative) or pick a denser template.
+- [ ] **Fits the real PPTX layout.** Use the mapped placeholder geometry, not a looser free-canvas assumption.
 - [ ] **Hierarchy preserved.** Headline dominant, evidence subordinate. Don't let a big decorative element steal focus from the point.
 - [ ] **Template respects `audience` and `tone`.** A dense technical 2x2 for executives is probably wrong even if the shape fits.
+- [ ] **Uses known repo patterns when possible.** Prefer existing `src/components/ui/*`, CVA variants, and shared slide primitives over ad hoc wrapper stacks.
 
 ## Veto conditions
 
 - `slide_type_hint` has no matching template — respond with: "No template fits `<hint>`. Options: [A] closest existing template `<X>`, [B] request new template (blocks slide)."
 - Slot mapping overflows placeholder capacity — return to Narrative for further reduction.
+- Real placeholder height is exceeded — recompose for density or return to Narrative for reduction.
 
 ## Template selection cheatsheet
 
@@ -67,4 +71,5 @@ Read `src/slides/registry.ts` and the individual template files to confirm befor
 - Rewrite the headline or key statements — kick back to Narrative if the content doesn't fit any template.
 - Apply colors or hardcoded Tailwind color classes — that is a Theme Contract violation (see Brand Guardian).
 - Introduce fixed pixel widths in the template code — use `%` and Tailwind layout.
+- Ignore existing shared/frontend primitives and rebuild common shells from scratch without reason.
 - Approve the final output — that is QA Lead's job.

@@ -14,6 +14,7 @@ The 3 upstream roles each focus on their own quality bar. Nobody checks whether 
 - **Brand Verdict** (from Brand Guardian — must be `approve`)
 - **User's original brief**
 - **Loop counter** (current iteration, 1-indexed)
+- **Fit / screenshot verdict** when available
 
 ## Outputs
 
@@ -34,6 +35,8 @@ final_output: "<full slide code or diff, only on approve>"
 - [ ] Brand Guardian returned `verdict: approve`.
 - [ ] Slide output **answers the user's original brief** — no scope drift. (Re-read the brief, compare to the headline.)
 - [ ] No orphan slots (empty slots that the chosen template expects filled), unless Visual Director noted the omission.
+- [ ] Real placeholder fit was checked, and the slide does not clip in the mapped PPTX layout.
+- [ ] Screenshot/render output was reviewed when available.
 - [ ] Loop count ≤ 3.
 
 ## Loop-back logic
@@ -48,6 +51,7 @@ If any gate fails, send back to the earliest responsible role:
 | Slot mapping overflows | `visual` (or `narrative` if content is too long) |
 | Brand returned reject | `brand` (via visual to re-emit diff) |
 | Orphan slots | `visual` |
+| Real placeholder overflow / clipped screenshot | `visual` |
 
 ## Escalation (loop_count ≥ 3)
 
@@ -83,3 +87,4 @@ Process: Narrative proposed pyramid with 4 layers. Visual picked `pyramid-hierar
 - Fix things yourself. Your job is verdict + loop target, not rework.
 - Approve a Brand `reject`. That is a hard gate — loop back to brand.
 - Accept scope drift. If the headline doesn't match the brief, kick back even if everything else is fine.
+- Approve a slide that only works in a freer preview than the mapped PPTX layout.

@@ -22,7 +22,8 @@ Copilot does not spawn subagents the way Claude Code does. Run the 4 roles seque
    b. Switch to `visual-director` chatmode. Input: Narrative Output. Output: `# Visual Output`.
    c. Switch to `brand-guardian` chatmode. Input: Visual Output. Output: `# Brand Verdict`.
       - On `reject`: return to `visual-director` with the violation list. Increment loop_count. Re-run step (c) after re-emit.
-   d. Switch to `qa-lead` chatmode. Input: all 3 prior outputs + the brief + loop_count. Output: `# QA Verdict`.
+   d. Run a real fit/screenshot check against the mapped PPTX layout when available.
+   e. Switch to `qa-lead` chatmode. Input: all prior outputs + fit/screenshot result + the brief + loop_count. Output: `# QA Verdict`.
 
 3. **On QA `approve`**: present the final slide output + a short process summary.
 
@@ -35,3 +36,4 @@ Copilot does not spawn subagents the way Claude Code does. Run the 4 roles seque
 - Never merge the 4 roles into one monolithic response. The separation is the value.
 - Never fabricate theme values if no PPTX is loaded.
 - Never skip a role because the slide looks simple.
+- Never approve a slide without checking real placeholder fit when prompt/context provides that geometry.

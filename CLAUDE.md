@@ -18,6 +18,12 @@ When the user asks to create, modify, or review a slide, you are expected to men
 
 If any check fails, fix before replying. Don't ship a "first draft" that violates §3 of AGENTS.md.
 
+For slides that map into a real PPTX layout, treat placeholder fit as a hard gate:
+- inspect the real body/title placeholder geometry from prompt/context
+- do not trust a free preview over the mapped PPTX layout
+- prefer screenshot-backed approval when a render can be generated
+- dense handout slides must still fit without clipping
+
 ### Reference example
 `src/slides/templates/24-PyramidHierarchy.tsx` is the **canonical good example** of a theme-aware slide. When authoring a new template, read it first, then mirror the pattern.
 
@@ -27,6 +33,11 @@ If any check fails, fix before replying. Don't ship a "first draft" that violate
 - Skills in `.claude/skills/`: `load-template-context`, `validate-against-theme`.
 
 Until Stage 3 lands, spawn subagents manually via the Task tool when a slide task warrants parallel/isolated reasoning (e.g. researching a template before picking it).
+
+Prefer existing repo UI patterns before inventing ad hoc slide shells:
+- `src/components/ui/*`
+- CVA / `class-variance-authority`
+- shared slide primitives in `src/slides/**/_shared.tsx`
 
 ### What *not* to do
 - Don't invent new CSS variables — the 8 in `theme.cssVars` are the only allowed color/type tokens.

@@ -75,6 +75,26 @@ Any slide template rendered inside `DynamicSlide` has these CSS custom propertie
 - **No fixed pixel widths in templates.** Use `%`, Tailwind `w-*`, flex/grid. The slide re-scales via CSS transform in `SlideCanvas.tsx`; hardcoded widths break this.
 - **Placeholder coordinates** are stored as **percentages** (`x`, `y`, `w`, `h` in `Placeholder.position` — range 0-100). Use them as-is, don't convert to pixels.
 
+### Fit Contract
+
+Theme correctness is not enough. A slide is only valid if it also fits the **real PPTX placeholder geometry** it is mapped into.
+
+**Rules:**
+
+1. ✅ Treat the mapped body placeholder as a **hard height budget**. Do not assume a free canvas preview equals the real layout.
+2. ✅ Use the real placeholder data from the prompt/context, including `id`, `x`, `y`, `w`, `h`, and slide size.
+3. ✅ Dense slides must solve overflow at the **template/content structure** level — not by globally shrinking the whole slide in `DynamicSlide`.
+4. ✅ For `title + body` layouts such as `One Column Text`, avoid a second hero-title zone inside the body unless the body content is correspondingly reduced.
+5. ✅ Approval requires a **real screenshot/render check** against the mapped layout when available.
+6. ❌ Do not approve slides with clipped bottom zones, hidden footer bands, or content that only works in a looser preview.
+
+**Default dense-handout structure for constrained body placeholders:**
+- one short lead/leitzeile
+- one or two compact content columns
+- one short conclusion strip
+
+This is the preferred fallback before inventing more complex diagram shells.
+
 ---
 
 ## 5. The CodeSlide / Slot system
@@ -123,6 +143,14 @@ export interface CodeSlideSlot {
 
 Agents receiving this prompt should **not** ask for colors / dimensions — they are already in the prompt. They **should** read `AGENTS.md` for authoring rules and the Slide 24 reference example.
 
+They should also treat the prompt as the source of truth for:
+- active `codeSlideId`
+- placeholder `id` values
+- the real body height budget
+- whether the slide is being reviewed as a dense handout
+
+If the prompt includes a screenshot/render status, that status is part of the QA surface, not an optional hint.
+
 **Stage 2 (planned):** The prompt will also embed a serialized `.slidebuilder/template-context.md` with full layout inventory and sample slides.
 
 ---
@@ -139,6 +167,27 @@ Slide creation follows a **review loop**, not a single prompt. Based on how pro 
 | **QA Lead** | [`docs/roles/qa-lead.md`](docs/roles/qa-lead.md) | Final gate. All 3 above signed off? Brief answered? Approve, loop back, or escalate. | Escalates to user after 3 loops. |
 
 **Flow:** user brief → Narrative → Visual → Brand → QA → (loop on fail) → result. Max 3 loops per slide.
+
+### Mandatory review additions
+
+The canonical 4-role loop still applies, but the following checks are now mandatory parts of the workflow:
+
+- **Fit / Placeholder review**: verify the slide against the real mapped PPTX placeholder, not just a free preview.
+- **Screenshot review**: when screenshoting/rendering is available, the review loop must inspect the actual output image before final approval.
+- **Source-depth review**: dense workshop slides should surface concrete source insights, not only topic labels or buzzwords.
+
+These checks can be embedded in Visual + QA or handled by additional reviewer passes, but they may not be skipped.
+
+### Dense Handout mode
+
+Some workshop slides are intentionally more text-dense and are meant to support 8-10 minutes of speaking time.
+
+When a slide is in **dense handout** mode:
+- more visible text is allowed
+- more concrete source-derived content is expected
+- layout discipline becomes stricter, not looser
+- the slide must still fit the real PPTX placeholder without clipping
+- the slide must not regress into a dashboard/form look
 
 ### Canonical skills
 
@@ -159,6 +208,14 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
 **Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 4 checks** — narrative clarity, template fit, theme compliance, brief alignment — before presenting output.
+
+Across all three platforms, slide creation should also prefer **existing frontend patterns already present in the repo**:
+- `src/components/ui/*`
+- `class-variance-authority`
+- `tailwind-merge`
+- shared slide primitives in `_shared.tsx`
+
+Do not build every dense slide from scratch with ad hoc one-off wrappers if an existing or easily generalizable primitive can carry the pattern.
 
 ---
 
@@ -182,9 +239,17 @@ src/
     DynamicSlide.tsx        — Renders a slide with theme.cssVars applied
     SlideCanvas.tsx         — Host + scaling
     AnnotationLayer.tsx     — buildCopilotPrompt (§6)
+    ui/                     — shadcn-style UI building blocks and reusable primitives
     SettingsPanel.tsx       — Template picker, slot mapping UI
     ExportButton.tsx        — PNG / PPTX export
 ```
+
+### Golden references
+
+- `src/slides/templates/24-PyramidHierarchy.tsx` — canonical theme-aware template example
+- `src/slides/DI Workshop/23-IamAiDeepfakesSlide.tsx` — dense two-column argument slide for constrained body placeholders
+- `src/slides/DI Workshop/24-AiAgentsIdentitiesSlide.tsx` — dense two-column operating-model slide for constrained body placeholders
+- `docs/slide-patterns.md` — approved dense-slide patterns and anti-patterns
 
 ---
 

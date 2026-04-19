@@ -1,5 +1,11 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import {
+  DenseInsightRow,
+  DenseLeadBand,
+  DenseSlideCard,
+  StatementStrip,
+} from "@/components/ui/slide-primitives";
 
 export const PALETTE = {
   bg: "var(--slide-bg)",
@@ -1056,3 +1062,8 @@ export const CenteredPrompt: React.FC<{
     ) : null}
   </div>
 );
+
+export const EditorialLeadBand = DenseLeadBand;
+export const DenseEditorialCard = DenseSlideCard;
+export const DenseBulletRow = DenseInsightRow;
+export const DenseStatementStrip = StatementStrip;

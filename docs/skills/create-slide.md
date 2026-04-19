@@ -28,7 +28,9 @@ brief
   ↓
 [3] Brand Guardian      → approve / reject (veto power)
   ↓  (if reject → back to Visual)
-[4] QA Lead             → approve / loop_back / escalate
+[4] Screenshot / Fit check → real placeholder fit + rendered output sanity
+  ↓  (if fail → back to Visual)
+[5] QA Lead             → approve / loop_back / escalate
   ↓  (if loop_back → back to named role)
   ↓  (if escalate → return diagnostic to user)
 final output to user
@@ -54,23 +56,37 @@ For each role, hand off the previous role's structured output verbatim and let t
    - On reject: loop back to Visual Director with the violation list. Do not proceed to QA.
 
 4. **QA Lead** (`docs/roles/qa-lead.md`)
-   - Input: Narrative Output + Visual Output + Brand Verdict + original brief + loop counter.
+   - Input: Narrative Output + Visual Output + Brand Verdict + fit/screenshot verdict + original brief + loop counter.
    - Output: `# QA Verdict` — `approve` | `loop_back` | `escalate`.
    - On approve: present final output to user with process summary.
    - On loop_back: return to named `loop_target` role, increment loop counter.
    - On escalate: present diagnostic with [A]/[B]/[C] options to user.
+
+### Mandatory fit / screenshot check
+
+Before QA approval, verify the slide against the **real mapped PPTX layout**, not just a free preview:
+
+- use placeholder `id`, `x`, `y`, `w`, `h`, and slide size from prompt/template context
+- confirm the body content fully fits the mapped placeholder height
+- inspect a rendered screenshot when available
+- reject clipped bottom zones, hidden footer strips, or body compositions that only work outside the real layout
+
+If screenshot generation is unavailable, treat the slide as **not yet fully verified** and escalate or block rather than silently approving.
 
 ## Quality gates for the orchestrator itself
 
 - [ ] Template context was loaded before Narrative Director was dispatched.
 - [ ] Each role's output is passed to the next role unmodified (no summarization that strips required fields).
 - [ ] Loop counter is tracked and included in every QA Lead dispatch.
+- [ ] Real placeholder fit was checked before QA approval.
+- [ ] Screenshot/render output was reviewed when available.
 - [ ] On escalation, the diagnostic is presented to the user — the orchestrator does not silently retry or silently accept.
 - [ ] Final approved output uses `var(--slide-*)` (Brand Guardian would have rejected otherwise, but double-check).
 
 ## Do not
 
 - Skip a role because "it's a simple slide". All 4 always run.
+- Skip fit/screenshot verification because "the preview looks close enough".
 - Merge roles into one prompt. The separation is the value — one role's blind spot is another role's focus.
 - Let the loop exceed 3 iterations silently. Escalate.
 - Fabricate theme values if no PPTX is loaded. Refuse and ask the user to upload first.

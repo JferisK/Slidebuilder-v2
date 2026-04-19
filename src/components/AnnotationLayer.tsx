@@ -237,6 +237,12 @@ function buildCopilotPrompt({
     "Größen: responsive `%` / Tailwind-Layout-Klassen, keine fixen Pixel.",
     "Kanonisches Beispiel: `src/slides/templates/24-PyramidHierarchy.tsx`.",
     "",
+    "## Fit-Kontrakt (Pflicht, aus AGENTS.md §4)",
+    "Die Slide muss in die reale PPTX-Placeholder-Geometrie passen, nicht nur in eine freie Preview.",
+    "Dense-Handout-Modus: sichtbar mehr Inhalt ist erlaubt, aber nur wenn die Folie ohne Clipping in den gemappten Body-Placeholder passt.",
+    "Keine zweite große Titelbühne im Body, wenn der Body dadurch vertikal überläuft.",
+    "Screenshot-/Render-Review ist Teil der Freigabe, wenn ein echter Render verfügbar ist.",
+    "",
   ];
   if (codeSlideId) {
     lines.push(`## Aktives CodeSlide-Template`);
@@ -255,6 +261,14 @@ function buildCopilotPrompt({
     lines.push(describePlaceholder(p, content, slideId, slideOrdinal));
   }
 
+  lines.push("");
+  lines.push("## Aktiver Layout-Budget-Hinweis");
+  lines.push(
+    "Bitte speziell auf den gemappten Body-Placeholder achten: Inhalt muss in dessen reale Höhe passen.",
+  );
+  lines.push(
+    "Wenn die Folie als dichte Workshop-/Handout-Folie gelesen wird, Inhalt verdichten statt global herunterskalieren.",
+  );
   lines.push("");
   lines.push("## Angeklickte Position");
   lines.push(`  x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`);
