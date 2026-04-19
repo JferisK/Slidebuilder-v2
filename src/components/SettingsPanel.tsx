@@ -18,6 +18,7 @@ import {
 import { Select } from "./ui/select";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
 import {
@@ -26,6 +27,156 @@ import {
   getCodeSlide,
 } from "@/slides/registry";
 import type { Placeholder } from "@/parser/pptxParser";
+import {
+  isContentElementId,
+  parseContentElementId,
+  describeContentElement,
+} from "@/lib/contentElementId";
+import { makeElementId, formatElementLabel } from "@/lib/elementId";
+
+const ContentEditPanel: React.FC = () => {
+  const selectedElementIds = useSlideStore((s) => s.selectedElementIds);
+  const activeSlide = useActiveSlide();
+  const activeLayout = useActiveLayout();
+  const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
+  const contentIndex = useSlideStore(
+    (s) => s.contentElementIndex[activeSlide?.id ?? ""],
+  );
+  const clearElementSelection = useSlideStore((s) => s.clearElementSelection);
+  const showToast = useSlideStore((s) => s.showToast);
+
+  const [text, setText] = React.useState("");
+
+  const contentIds = React.useMemo(
+    () => selectedElementIds.filter(isContentElementId),
+    [selectedElementIds],
+  );
+
+  React.useEffect(() => {
+    if (contentIds.length === 0) setText("");
+  }, [contentIds.length]);
+
+  if (contentIds.length === 0 || !activeSlide || !activeLayout) return null;
+
+  const slideId = activeSlide.id;
+  const slideOrdinal = activeSlideIndex + 1;
+
+  const handleSubmit = async () => {
+    const intent = text.trim();
+    if (!intent) return;
+    const lines: string[] = [
+      "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
+      "",
+      "## Content-Element-Auswahl",
+      `Slide-Id: "${slideId}"`,
+      `Slide-Ordinal: ${slideOrdinal}`,
+      `Layout: "${activeLayout.name}"`,
+      "",
+      "Der User hat auf dem Canvas die folgenden Inhalts-Elemente markiert.",
+      "Jede id hat das Format `<slideId>::p<placeholderIdx>::<domPath>`.",
+      "Bitte Änderungen ausschließlich an diesen Elementen vornehmen und per id referenzieren.",
+      "",
+    ];
+    contentIds.forEach((id, i) => {
+      const entry = contentIndex?.[id];
+      const parsed = parseContentElementId(id);
+      const ph = parsed
+        ? activeLayout.placeholders.find((p) => p.idx === parsed.placeholderIdx)
+        : undefined;
+      lines.push(`  ${i + 1}. id="${id}"`);
+      if (entry) {
+        lines.push(
+          `     type=${entry.type} · ${describeContentElement(entry.type, entry.textContent)}`,
+        );
+        lines.push(`     text="${entry.textContent}"`);
+        lines.push(
+          `     Position (norm): x=${entry.rect.x.toFixed(3)}, y=${entry.rect.y.toFixed(3)}, w=${entry.rect.w.toFixed(3)}, h=${entry.rect.h.toFixed(3)}`,
+        );
+      }
+      if (ph) {
+        const phId = makeElementId(slideId, ph.idx);
+        lines.push(
+          `     Eltern-Platzhalter: id="${phId}", label="${formatElementLabel(slideOrdinal, ph.type, ph.idx)}"`,
+        );
+      }
+    });
+    lines.push("");
+    lines.push("## Gewünschte Änderung");
+    lines.push(`"${intent}"`);
+    lines.push("");
+    lines.push(
+      "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
+      "Referenziere Elemente ausschließlich per `id`.",
+      "Zeige den geänderten Code-Abschnitt.",
+    );
+    try {
+      await navigator.clipboard.writeText(lines.join("\n").trim());
+      showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
+    } catch {
+      showToast("⚠️ Clipboard nicht verfügbar", "error");
+    }
+    clearElementSelection();
+  };
+
+  return (
+    <div className="rounded-lg border border-[#3b82f6] bg-[var(--app-surface)] p-3">
+      <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[#3b82f6]">
+        {contentIds.length === 1
+          ? "1 Element ausgewählt"
+          : `${contentIds.length} Elemente ausgewählt`}
+      </div>
+      <div className="mb-3 flex flex-col gap-1">
+        {contentIds.slice(0, 5).map((id) => {
+          const entry = contentIndex?.[id];
+          return (
+            <div key={id} className="truncate text-[11px] text-[var(--app-text)]">
+              · {entry
+                ? describeContentElement(entry.type, entry.textContent)
+                : id}
+            </div>
+          );
+        })}
+        {contentIds.length > 5 && (
+          <div className="text-[10px] text-[var(--app-muted)]">
+            + {contentIds.length - 5} weitere
+          </div>
+        )}
+      </div>
+      <Textarea
+        autoFocus
+        rows={3}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            e.preventDefault();
+            void handleSubmit();
+          }
+        }}
+        placeholder="Was soll geändert werden?"
+        className="mb-2"
+      />
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1"
+          onClick={() => clearElementSelection()}
+        >
+          Auswahl leeren
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={!text.trim()}
+          onClick={handleSubmit}
+        >
+          📋 Kopieren
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const PLACEHOLDER_TYPE_LABELS: Record<string, string> = {
   title: "Titel",
@@ -388,6 +539,7 @@ export const SettingsPanel: React.FC = () => {
       className="flex h-full flex-none flex-col border-l border-[var(--app-border)] bg-[var(--app-panel)]"
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
+        <ContentEditPanel />
         <SettingsGroup title="PPTX-Struktur">
           {templates.length > 0 && (
             <div>

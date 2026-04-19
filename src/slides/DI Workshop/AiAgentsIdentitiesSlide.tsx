@@ -68,11 +68,11 @@ const TitleSlot: React.FC = () => (
 
 const BodySlot: React.FC = () => (
   <div
-    className="grid h-full w-full grid-cols-[1.02fr_0.98fr] gap-4"
+    className="grid h-full w-full grid-cols-[1.16fr_0.84fr] gap-4"
     style={{ fontFamily: PALETTE.body }}
   >
     <div className="grid min-h-0 grid-rows-[auto_1fr_auto] gap-4">
-      <div className="grid grid-cols-[1.15fr_0.85fr] gap-3">
+      <div className="grid grid-cols-[1.28fr_0.72fr] gap-3">
         <HeroBand
           eyebrow="Identity landscape"
           tone="ai"
@@ -95,17 +95,47 @@ const BodySlot: React.FC = () => (
             />
           }
         />
-        <div className="grid grid-rows-2 gap-3">
-          <EvidenceStat
-            value="AI"
-            label="Your next customer or employee could be AI"
-            tone="ai"
-          />
-          <EvidenceStat
-            value="new"
-            label="Agents werden als neue Identitätsklasse behandelt"
-            tone="trust"
-          />
+        <div className="grid grid-rows-2 gap-2 self-start">
+          <div
+            className="rounded-[18px] px-3 py-2"
+            style={{
+              background: mix(PALETTE.ai, PALETTE.bg, 10),
+              border: `1px solid ${mix(PALETTE.ai, "transparent", 22)}`,
+            }}
+          >
+            <div
+              className="text-[18px] font-semibold leading-none"
+              style={{ color: PALETTE.ai, fontFamily: PALETTE.heading }}
+            >
+              AI
+            </div>
+            <div
+              className="mt-1 text-[9px] leading-snug"
+              style={{ color: PALETTE.muted }}
+            >
+              Your next customer or employee could be AI
+            </div>
+          </div>
+          <div
+            className="rounded-[18px] px-3 py-2"
+            style={{
+              background: mix(PALETTE.trust, PALETTE.bg, 10),
+              border: `1px solid ${mix(PALETTE.trust, "transparent", 22)}`,
+            }}
+          >
+            <div
+              className="text-[18px] font-semibold leading-none"
+              style={{ color: PALETTE.trust, fontFamily: PALETTE.heading }}
+            >
+              new
+            </div>
+            <div
+              className="mt-1 text-[9px] leading-snug"
+              style={{ color: PALETTE.muted }}
+            >
+              Agents werden als neue Identitätsklasse behandelt
+            </div>
+          </div>
         </div>
       </div>
 
@@ -133,149 +163,110 @@ const BodySlot: React.FC = () => (
           }}
         />
 
-        <div className="relative z-10 grid h-full grid-cols-[1.15fr_0.85fr] gap-4">
-          <div className="flex min-h-0 flex-col">
-            <div
-              className="text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: PALETTE.muted }}
-            >
-              Identity universe
-            </div>
-            <div
-              className="mt-1 text-[22px] font-semibold leading-[1.02]"
-              style={{ color: PALETTE.primary, fontFamily: PALETTE.heading }}
-            >
-              Agents verbinden Identität, Tools, Daten und Entscheidungen.
-            </div>
+        <div className="relative z-10 flex h-full flex-col">
+          <div
+            className="text-[10px] uppercase tracking-[0.18em]"
+            style={{ color: PALETTE.muted }}
+          >
+            Identity universe
+          </div>
+          <div
+            className="mt-1 text-[22px] font-semibold leading-[1.02]"
+            style={{ color: PALETTE.primary, fontFamily: PALETTE.heading }}
+          >
+            Agents verbinden Identität, Tools, Daten und Entscheidungen.
+          </div>
 
-            <div className="relative mt-4 flex-1">
-              <RiskSurface
-                center={
-                  <div>
-                    <div
-                      className="text-[10px] uppercase tracking-[0.16em]"
-                      style={{ color: "rgba(255,255,255,0.68)" }}
-                    >
-                      Agent identity
-                    </div>
-                    <div
-                      className="mt-1 text-[20px] font-semibold leading-tight"
-                      style={{ fontFamily: PALETTE.heading }}
-                    >
-                      AI
-                      <br />
-                      agent
-                    </div>
+          <div className="relative mt-4 flex-1">
+            <RiskSurface
+              center={
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-[0.16em]"
+                    style={{ color: "rgba(255,255,255,0.68)" }}
+                  >
+                    Agent identity
                   </div>
-                }
-                nodes={[
-                  {
-                    key: "services",
-                    label: "Services",
-                    x: "16%",
-                    y: "24%",
-                    size: 92,
-                    tone: "trust",
-                  },
-                  {
-                    key: "bots",
-                    label: "Bots",
-                    x: "84%",
-                    y: "22%",
-                    size: 88,
-                    tone: "ai",
-                  },
-                  {
-                    key: "scripts",
-                    label: "Skripte",
-                    x: "15%",
-                    y: "76%",
-                    size: 88,
-                    tone: "primary",
-                  },
-                  {
-                    key: "tools",
-                    label: "Tool\ncalls",
-                    x: "84%",
-                    y: "76%",
-                    size: 94,
-                    tone: "signal",
-                  },
-                  {
-                    key: "data",
-                    label: "Data\naccess",
-                    x: "50%",
-                    y: "14%",
-                    size: 90,
-                    tone: "risk",
-                  },
-                  {
-                    key: "sponsor",
-                    label: "Human\nsponsor",
-                    x: "50%",
-                    y: "88%",
-                    size: 98,
-                    tone: "deep",
-                  },
-                ]}
-              />
-              <div className="absolute left-[28%] top-[37%]">
-                <FlowConnector tone="trust" length={86} />
-              </div>
-              <div className="absolute right-[28%] top-[37%]">
-                <FlowConnector tone="ai" length={86} />
-              </div>
-              <div className="absolute left-[29%] bottom-[34%]">
-                <FlowConnector tone="primary" length={84} />
-              </div>
-              <div className="absolute right-[29%] bottom-[34%]">
-                <FlowConnector tone="signal" length={84} />
-              </div>
+                  <div
+                    className="mt-1 text-[20px] font-semibold leading-tight"
+                    style={{ fontFamily: PALETTE.heading }}
+                  >
+                    AI
+                    <br />
+                    agent
+                  </div>
+                </div>
+              }
+              nodes={[
+                {
+                  key: "services",
+                  label: "Services",
+                  x: "16%",
+                  y: "24%",
+                  size: 88,
+                  tone: "trust",
+                },
+                {
+                  key: "bots",
+                  label: "Bots",
+                  x: "84%",
+                  y: "22%",
+                  size: 84,
+                  tone: "ai",
+                },
+                {
+                  key: "scripts",
+                  label: "Skripte",
+                  x: "15%",
+                  y: "76%",
+                  size: 84,
+                  tone: "primary",
+                },
+                {
+                  key: "tools",
+                  label: "Tool\ncalls",
+                  x: "84%",
+                  y: "76%",
+                  size: 88,
+                  tone: "signal",
+                },
+                {
+                  key: "data",
+                  label: "Data\naccess",
+                  x: "50%",
+                  y: "14%",
+                  size: 86,
+                  tone: "risk",
+                },
+                {
+                  key: "sponsor",
+                  label: "Human\nsponsor",
+                  x: "50%",
+                  y: "88%",
+                  size: 92,
+                  tone: "deep",
+                },
+              ]}
+            />
+            <div className="absolute left-[28%] top-[37%]">
+              <FlowConnector tone="trust" length={86} />
+            </div>
+            <div className="absolute right-[28%] top-[37%]">
+              <FlowConnector tone="ai" length={86} />
+            </div>
+            <div className="absolute left-[29%] bottom-[34%]">
+              <FlowConnector tone="primary" length={84} />
+            </div>
+            <div className="absolute right-[29%] bottom-[34%]">
+              <FlowConnector tone="signal" length={84} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div
-              className="rounded-[24px] p-4"
-              style={{
-                background: mix(PALETTE.trust, PALETTE.bg, 12),
-                border: `1px solid ${mix(PALETTE.trust, "transparent", 24)}`,
-              }}
-            >
-              <div
-                className="text-[10px] uppercase tracking-[0.16em]"
-                style={{ color: PALETTE.muted }}
-              >
-                Access facets
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <SignalPill label="tools" tone="signal" />
-                <SignalPill label="data" tone="trust" />
-                <SignalPill label="actions" tone="risk" />
-                <SignalPill label="context" tone="ai" />
-              </div>
-            </div>
-
-            <div
-              className="rounded-[24px] p-4"
-              style={{
-                background: mix(PALETTE.bg, PALETTE.secondary, 78),
-                border: `1px solid ${mix(PALETTE.primary, "transparent", 16)}`,
-              }}
-            >
-              <div
-                className="text-[10px] uppercase tracking-[0.16em]"
-                style={{ color: PALETTE.muted }}
-              >
-                Risk signals
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <SignalPill label="oversharing" tone="risk" />
-                <SignalPill label="agent sprawl" tone="ai" />
-                <SignalPill label="governance gaps" tone="trust" />
-                <SignalPill label="new attack vectors" tone="signal" />
-              </div>
-            </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <SignalPill label="tools" tone="signal" />
+            <SignalPill label="data" tone="trust" />
+            <SignalPill label="actions" tone="risk" />
+            <SignalPill label="context" tone="ai" />
           </div>
         </div>
       </div>

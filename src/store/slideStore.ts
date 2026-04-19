@@ -79,12 +79,6 @@ export interface ContentElementIndexEntry extends ContentElementMeta {}
 
 export type ContentElementIndex = Record<string, ContentElementIndexEntry>;
 
-export interface PendingEditPrompt {
-  /** Element ids that the popover is bound to. Snapshotted at open time. */
-  elementIds: string[];
-  text: string;
-}
-
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
 export const ZOOM_STEP = 0.1;
@@ -140,12 +134,6 @@ export interface SlideForgeStore {
     placeholderIdx: number,
   ) => void;
   clearContentElementsForSlide: (slideId: string) => void;
-
-  // ── Pending edit prompt popover ──────────────────────────
-  pendingEditPrompt: PendingEditPrompt | null;
-  openEditPopover: (elementIds: string[]) => void;
-  updateEditPromptText: (text: string) => void;
-  closeEditPopover: () => void;
 
   // ── Canvas zoom ──────────────────────────────────────────
   canvasZoom: number;
@@ -415,7 +403,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   activeSlideIndex: 0,
   selectedElementIds: [],
   contentElementIndex: {},
-  pendingEditPrompt: null,
   canvasZoom: 1,
   slides: [],
   annotations: [],
@@ -544,15 +531,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     delete next[slideId];
     set({ contentElementIndex: next });
   },
-
-  openEditPopover: (elementIds) =>
-    set({ pendingEditPrompt: { elementIds, text: "" } }),
-  updateEditPromptText: (text) => {
-    const current = get().pendingEditPrompt;
-    if (!current) return;
-    set({ pendingEditPrompt: { ...current, text } });
-  },
-  closeEditPopover: () => set({ pendingEditPrompt: null }),
 
   setCanvasZoom: (z) =>
     set({ canvasZoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) }),

@@ -27,8 +27,6 @@ import {
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tooltip } from "./ui/tooltip";
-import { SelectionEditPopover } from "./SelectionEditPopover";
-
 const DRAG_THRESHOLD_NORM = 0.01;
 
 interface AnnotationLayerProps {
@@ -281,9 +279,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const contentIndex = useSlideStore(
     (s) => s.contentElementIndex[slideId],
   );
-  const pendingEditPrompt = useSlideStore((s) => s.pendingEditPrompt);
-  const openEditPopover = useSlideStore((s) => s.openEditPopover);
-  const closeEditPopover = useSlideStore((s) => s.closeEditPopover);
 
   const overlayRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -486,81 +481,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     setDraftArea(null);
     setDraftComment("");
     setDrawingArea(false);
-  };
-
-  const hasContentSelection = selectedElementIds.some(isContentElementId);
-  React.useEffect(() => {
-    if (hasContentSelection && !pendingEditPrompt) {
-      openEditPopover(selectedElementIds.filter(isContentElementId));
-    }
-    if (!hasContentSelection && pendingEditPrompt) {
-      closeEditPopover();
-    }
-  }, [
-    hasContentSelection,
-    pendingEditPrompt,
-    selectedElementIds,
-    openEditPopover,
-    closeEditPopover,
-  ]);
-
-  const submitContentEdit = async (intent: string) => {
-    const contentIds = selectedElementIds.filter(isContentElementId);
-    if (contentIds.length === 0) return;
-    const lines: string[] = [
-      "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
-      "",
-      "## Content-Element-Auswahl",
-      `Slide-Id: "${slideId}"`,
-      `Slide-Ordinal: ${slideOrdinal}`,
-      `Layout: "${layout.name}"`,
-      "",
-      "Der User hat auf dem Canvas die folgenden Inhalts-Elemente markiert.",
-      "Jede id hat das Format `<slideId>::p<placeholderIdx>::<domPath>`.",
-      "Bitte Änderungen ausschließlich an diesen Elementen vornehmen und per id referenzieren.",
-      "",
-    ];
-    contentIds.forEach((id, i) => {
-      const entry = contentIndex?.[id];
-      const parsed = parseContentElementId(id);
-      const ph = parsed
-        ? layout.placeholders.find((p) => p.idx === parsed.placeholderIdx)
-        : undefined;
-      lines.push(`  ${i + 1}. id="${id}"`);
-      if (entry) {
-        lines.push(
-          `     type=${entry.type} · ${describeContentElement(entry.type, entry.textContent)}`,
-        );
-        lines.push(`     text="${entry.textContent}"`);
-        lines.push(
-          `     Position (norm): x=${entry.rect.x.toFixed(3)}, y=${entry.rect.y.toFixed(3)}, w=${entry.rect.w.toFixed(3)}, h=${entry.rect.h.toFixed(3)}`,
-        );
-      }
-      if (ph) {
-        const phId = makeElementId(slideId, ph.idx);
-        lines.push(
-          `     Eltern-Platzhalter: id="${phId}", label="${formatElementLabel(slideOrdinal, ph.type, ph.idx)}"`,
-        );
-      }
-    });
-    lines.push("");
-    lines.push("## Gewünschte Änderung");
-    lines.push(`"${intent}"`);
-    lines.push("");
-    lines.push(
-      "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
-      "Referenziere Elemente ausschließlich per `id`.",
-      "Zeige den geänderten Code-Abschnitt.",
-    );
-    const prompt = lines.join("\n").trim();
-    try {
-      await navigator.clipboard.writeText(prompt);
-      showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
-    } catch {
-      showToast("⚠️ Clipboard nicht verfügbar", "error");
-    }
-    closeEditPopover();
-    clearElementSelection();
   };
 
   if (!visible) return null;
@@ -798,14 +718,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
 
       {/* Draft: area rectangle being drawn (marquee) */}
       {draftArea && drawingArea && <div style={areaRectStyle(draftArea)} />}
-
-      {/* Content-element selection popover */}
-      <SelectionEditPopover
-        slideId={slideId}
-        slideIndex={activeSlideIndex}
-        renderSize={renderSize}
-        onSubmit={submitContentEdit}
-      />
 
       {/* Draft: pin */}
       {draftPin && (
