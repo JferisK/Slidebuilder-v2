@@ -8,12 +8,13 @@
 
 ### Before suggesting any slide-template change
 
-Run these four mental checks from `AGENTS.md` §7 before completing any suggestion:
+Run these five mental checks from `AGENTS.md` §7 before completing any suggestion:
 
 1. **Narrative** — clear message, right hierarchy?
 2. **Visual** — right template, slots sensibly mapped?
 3. **Brand** — every color via `var(--slide-*)`? No `bg-amber-*` / `text-red-*` / hardcoded pixel widths?
-4. **QA** — matches the user's brief?
+4. **Visual Stylist** — visible focal point, screenshot readability, non-generic composition?
+5. **QA** — matches the user's brief and real placeholder geometry?
 
 A suggestion that violates §3 of AGENTS.md (Theme Contract) is wrong even if it compiles.
 
@@ -29,7 +30,7 @@ For slides mapped into real PPTX layouts, fit is a hard gate:
 ### Useful Copilot features on this repo
 - **`@workspace`** for cross-file questions about the CodeSlide registry and theme propagation.
 - **Inline Chat** with a slide template file open → propose changes that honor the Theme Contract.
-- **Chat Modes (Stage 3, planned):** Brand Guardian, Narrative Director, Visual Director, QA Lead — will live in `.github/chatmodes/`.
+- **Chat Modes (Stage 3, planned):** Brand Guardian, Narrative Director, Visual Director, Visual Stylist, QA Lead — will live in `.github/chatmodes/`.
 - **Prompts (Stage 3, planned):** `/create-slide` in `.github/prompts/create-slide.prompt.md`.
 
 Prefer existing repo UI patterns before inventing one-off wrappers:

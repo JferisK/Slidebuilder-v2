@@ -155,7 +155,7 @@ If the prompt includes a screenshot/render status, that status is part of the QA
 
 ---
 
-## 7. The team process (4 roles)
+## 7. The team process (5 roles)
 
 Slide creation follows a **review loop**, not a single prompt. Based on how pro slide teams work (McKinsey VG/QC, design agency CD/AD/brand split, Duarte narrative-first):
 
@@ -194,7 +194,6 @@ When a slide is in **dense handout** mode:
 
 Platform-neutral skill specs live in `docs/skills/` and are referenced by every platform adapter:
 
-- [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the 4-role loop.
 - [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the full review loop, including fit/screenshot and visual styling.
 - [`docs/skills/load-template-context.md`](docs/skills/load-template-context.md) — read active PPTX theme + layouts.
 - [`docs/skills/validate-against-theme.md`](docs/skills/validate-against-theme.md) — scan a diff/file for Theme Contract violations.
@@ -209,7 +208,7 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 | **GitHub Copilot** | `.github/chatmodes/{narrative-director,visual-director,brand-guardian,visual-stylist,qa-lead}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
-**Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 4 checks** — narrative clarity, template fit, theme compliance, brief alignment — before presenting output.
+**Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 5 checks** — narrative clarity, template fit, theme compliance, visual strength, and brief alignment — before presenting output.
 
 Across all three platforms, slide creation should also prefer **existing frontend patterns already present in the repo**:
 - `src/components/ui/*`
