@@ -187,6 +187,7 @@ function buildCopilotPrompt({
   slideId,
   slideOrdinal,
   slideSize,
+  codeSlideId,
 }: {
   masterName: string;
   layoutName: string;
@@ -200,10 +201,13 @@ function buildCopilotPrompt({
   slideId: string;
   slideOrdinal: number;
   slideSize?: SlideSize;
+  codeSlideId?: string;
 }): string {
   const renderSize = getRenderSlideSize(slideSize);
   const lines: string[] = [
     "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
+    "",
+    "📖 **Lies zuerst `AGENTS.md` im Repo-Root** (Projekt-Konventionen, Theme-Kontrakt §3, CodeSlide-System, 4-Rollen-Team-Prozess). `CLAUDE.md` / `.github/copilot-instructions.md` sind Plattform-Zeiger darauf.",
     "",
     "## Eindeutige Element-IDs",
     "Jedes Element hat eine eindeutige `id` im Format `<slideId>::<idx>` und ein menschenlesbares",
@@ -227,8 +231,25 @@ function buildCopilotPrompt({
     `  Font Heading:  ${themeColors["--slide-font-heading"] ?? "?"}`,
     `  Font Body:     ${themeColors["--slide-font-body"] ?? "?"}`,
     "",
-    "## Alle Placeholders in diesem Layout",
+    "## Theme-Kontrakt (Pflicht, aus AGENTS.md §3)",
+    "Farben AUSSCHLIESSLICH via `var(--slide-*)` in Inline-Styles setzen — keine Tailwind-Farb-Klassen (kein `bg-amber-*`, `text-blue-*`, `border-red-*`).",
+    "Tints: `color-mix(in srgb, var(--slide-accent) 20%, transparent)`.",
+    "Größen: responsive `%` / Tailwind-Layout-Klassen, keine fixen Pixel.",
+    "Kanonisches Beispiel: `src/slides/templates/24-PyramidHierarchy.tsx`.",
+    "",
   ];
+  if (codeSlideId) {
+    lines.push(`## Aktives CodeSlide-Template`);
+    lines.push(`codeSlideId: "${codeSlideId}"`);
+    lines.push(
+      "→ Datei suchen unter `src/slides/templates/` (Dateiname enthält diese id kebab-case).",
+    );
+    lines.push(
+      "→ Muss den Theme-Kontrakt oben einhalten. Falls aktuell hardcoded Tailwind-Farben: refactor auf `var(--slide-*)` wie in Slide 24.",
+    );
+    lines.push("");
+  }
+  lines.push("## Alle Placeholders in diesem Layout");
 
   for (const p of layoutPlaceholders) {
     lines.push(describePlaceholder(p, content, slideId, slideOrdinal));
@@ -267,6 +288,9 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   const visible = useSlideStore((s) => s.annotationsVisible);
   const annotations = useSlideStore((s) => s.annotations);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
+  const codeSlideId = useSlideStore(
+    (s) => s.slides[s.activeSlideIndex]?.codeSlideId,
+  );
   const addAnnotation = useSlideStore((s) => s.addAnnotation);
   const removeAnnotation = useSlideStore((s) => s.removeAnnotation);
   const showToast = useSlideStore((s) => s.showToast);
@@ -451,6 +475,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       slideId,
       slideOrdinal,
       slideSize,
+      codeSlideId,
     });
 
     try {

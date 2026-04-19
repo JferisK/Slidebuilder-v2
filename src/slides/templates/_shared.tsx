@@ -1,26 +1,77 @@
 import * as React from "react";
 
+// Theme-aware wireframe primitives.
+//
+// Colors come from CSS custom properties set by DynamicSlide (see
+// `themeStyle = theme.cssVars` in src/components/DynamicSlide.tsx).
+// That means any slide rendered inside DynamicSlide can reference:
+//   --slide-bg, --slide-primary, --slide-secondary, --slide-accent,
+//   --slide-text, --slide-text-muted, --slide-font-heading, --slide-font-body
+//
+// Rule (see AGENTS.md §3 — Theme Contract): never hardcode Tailwind color
+// classes in a slide template. Tailwind is for layout/spacing only.
+
 type WireVariant = "default" | "title" | "metric" | "chart" | "accent" | "muted" | "dark";
 
-const variantClasses: Record<WireVariant, string> = {
-  default: "bg-slate-100/70 border-slate-400 text-slate-600",
-  title: "bg-slate-50 border-slate-500 text-slate-800",
-  metric: "bg-white border-slate-500 text-slate-700",
-  chart: "bg-slate-50 border-slate-400 text-slate-500",
-  accent: "bg-amber-50 border-amber-500 text-amber-800",
-  muted: "bg-slate-50/60 border-slate-300 text-slate-400",
-  dark: "bg-slate-700 border-slate-500 text-slate-100",
+type WireStyle = {
+  backgroundColor: string;
+  borderColor: string;
+  color: string;
+};
+
+// Tint helper — a transparent version of a CSS var, for soft fills.
+const tint = (cssVar: string, percent: number) =>
+  `color-mix(in srgb, var(${cssVar}) ${percent}%, transparent)`;
+
+const variantStyles: Record<WireVariant, WireStyle> = {
+  default: {
+    backgroundColor: tint("--slide-secondary", 70),
+    borderColor: "var(--slide-text-muted)",
+    color: "var(--slide-text-muted)",
+  },
+  title: {
+    backgroundColor: "var(--slide-bg)",
+    borderColor: "var(--slide-primary)",
+    color: "var(--slide-primary)",
+  },
+  metric: {
+    backgroundColor: "var(--slide-bg)",
+    borderColor: "var(--slide-primary)",
+    color: "var(--slide-text)",
+  },
+  chart: {
+    backgroundColor: tint("--slide-secondary", 50),
+    borderColor: "var(--slide-text-muted)",
+    color: "var(--slide-text-muted)",
+  },
+  accent: {
+    backgroundColor: tint("--slide-accent", 15),
+    borderColor: "var(--slide-accent)",
+    color: "var(--slide-accent)",
+  },
+  muted: {
+    backgroundColor: tint("--slide-secondary", 40),
+    borderColor: tint("--slide-text-muted", 50),
+    color: tint("--slide-text-muted", 70),
+  },
+  dark: {
+    backgroundColor: "var(--slide-primary)",
+    borderColor: "var(--slide-primary)",
+    color: "var(--slide-bg)",
+  },
 };
 
 export const WireBlock: React.FC<{
   label: string;
   variant?: WireVariant;
   className?: string;
+  style?: React.CSSProperties;
   hint?: string;
   children?: React.ReactNode;
-}> = ({ label, variant = "default", className = "", hint, children }) => (
+}> = ({ label, variant = "default", className = "", style, hint, children }) => (
   <div
-    className={`flex flex-col justify-center items-center text-center border-2 border-dashed rounded-md p-1.5 overflow-hidden ${variantClasses[variant]} ${className}`}
+    className={`flex flex-col justify-center items-center text-center border-2 border-dashed rounded-md p-1.5 overflow-hidden ${className}`}
+    style={{ ...variantStyles[variant], ...style }}
   >
     <span className="text-[11px] leading-tight uppercase tracking-wide font-semibold">
       {label}
@@ -51,11 +102,15 @@ export const WireTitle: React.FC<{ label: string; hint?: string }> = ({
 }) => <WireBlock label={label} hint={hint} variant="title" className="h-full w-full" />;
 
 export const WireLegend: React.FC<{ items: string[] }> = ({ items }) => (
-  <div className="flex flex-wrap gap-1 text-[9px] text-slate-500">
+  <div
+    className="flex flex-wrap gap-1 text-[9px]"
+    style={{ color: "var(--slide-text-muted)" }}
+  >
     {items.map((it, i) => (
       <span
         key={i}
-        className="border border-slate-300 border-dashed rounded px-1 py-0.5"
+        className="border border-dashed rounded px-1 py-0.5"
+        style={{ borderColor: tint("--slide-text-muted", 50) }}
       >
         {it}
       </span>

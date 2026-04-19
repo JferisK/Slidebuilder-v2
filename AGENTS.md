@@ -1,0 +1,208 @@
+# AGENTS.md — Slidebuilder-v2 (SlideForge)
+
+> **Read this first.** Canonical project conventions for **any** AI agent or developer working on this repo. Claude Code, OpenAI Codex, GitHub Copilot — all three honor this file. Platform-specific pointers live in `CLAUDE.md` and `.github/copilot-instructions.md` but defer here for the substance.
+
+---
+
+## 1. What this project is
+
+**Slidebuilder-v2** (internal codename: SlideForge) is a browser app that lets users upload a `.pptx` file, pick one of 25 React-authored slide templates (`CodeSlide`s) for each slide, and export the composed result as PNG or back to PPTX. It is **not** a general design tool — its whole purpose is to render content **inside the visual identity of the uploaded PowerPoint master**: same colors, same typography, same dimensions.
+
+**Stack:** React 18 + TypeScript + Vite + Tailwind + Zustand. No backend. All parsing runs in the browser via JSZip (`src/parser/pptxParser.ts`).
+
+---
+
+## 2. Architecture at a glance
+
+```
+user uploads .pptx
+        │
+        ▼
+src/parser/pptxParser.ts   → produces ParsedPresentation { masters[], slideSize }
+                              Each master has theme.cssVars + layouts[] (placeholders)
+        │
+        ▼
+src/store/slideStore.ts    → Zustand store holds masters, slides, active selection
+        │
+        ▼
+src/components/DynamicSlide.tsx
+        │                    Applies theme.cssVars as inline style on the slide root
+        │                    (line ~232: `const themeStyle = theme.cssVars as React.CSSProperties`)
+        │                    → every descendant can use var(--slide-primary) etc.
+        ▼
+src/slides/templates/NN-*.tsx  → React CodeSlide authoring
+                                  Reads colors EXCLUSIVELY via var(--slide-*)
+                                  — never via Tailwind color classes.
+        │
+        ▼
+src/components/ExportButton.tsx → PNG export via html2canvas or PPTX re-emit
+```
+
+---
+
+## 3. The Theme Contract (**most important rule**)
+
+Any slide template rendered inside `DynamicSlide` has these CSS custom properties on its ancestor element:
+
+| Variable | Purpose | Fallback |
+|---|---|---|
+| `--slide-bg` | Page background | `#ffffff` |
+| `--slide-primary` | Dominant brand color (titles, strong fills) | `#1f4e79` |
+| `--slide-secondary` | Soft fill / muted surface | `#f2f2f2` |
+| `--slide-accent` | Highlight / CTA color | `#c00000` |
+| `--slide-text` | Body text | `#1a1a1a` |
+| `--slide-text-muted` | Hints, secondary copy | `#666666` |
+| `--slide-font-heading` | Heading font stack | `Calibri, sans-serif` |
+| `--slide-font-body` | Body font stack | `Calibri, sans-serif` |
+
+**Rules:**
+
+1. ✅ **DO** use `style={{ color: "var(--slide-primary)" }}` or `style={{ backgroundColor: "var(--slide-accent)" }}` for any color-carrying styling.
+2. ✅ **DO** use Tailwind for **layout** (grid, flex, spacing, sizing, typography scale).
+3. ❌ **DO NOT** hardcode Tailwind color classes (`bg-amber-100`, `text-blue-600`, `border-red-500`, `bg-slate-700`, etc.) in slide templates.
+4. ✅ **Faded / tinted variants:** use `color-mix(in srgb, var(--slide-accent) 15%, transparent)` — modern CSS, supported everywhere.
+5. 🟨 **`slate-*` is tolerated only for wireframe/debug UI** (e.g. placeholder labels in the template preview), never on user-visible production output.
+
+**Canonical reference example:** [`src/slides/templates/24-PyramidHierarchy.tsx`](src/slides/templates/24-PyramidHierarchy.tsx) — demonstrates the correct pattern (CSS-var inline styles + responsive percentage widths). Imitate it.
+
+**Shared variants:** `src/slides/templates/_shared.tsx` exports `WireBlock` with a `variant` prop (`default | title | metric | chart | accent | muted | dark`). All variants resolve to CSS-var styles under the hood — prefer the variant prop over inline styles when semantics match.
+
+---
+
+## 4. Dimensions & layout
+
+- **Aspect ratio** comes from `slideSize` on the active master (`widthEmu × heightEmu`). Typical: 16:9 (9144000 × 5143500 EMU → 1280 × 720 px render).
+- **No fixed pixel widths in templates.** Use `%`, Tailwind `w-*`, flex/grid. The slide re-scales via CSS transform in `SlideCanvas.tsx`; hardcoded widths break this.
+- **Placeholder coordinates** are stored as **percentages** (`x`, `y`, `w`, `h` in `Placeholder.position` — range 0-100). Use them as-is, don't convert to pixels.
+
+---
+
+## 5. The CodeSlide / Slot system
+
+File: `src/slides/types.ts`
+
+```ts
+export interface CodeSlide {
+  id: string;           // stable, kebab-case — referenced from Slide.codeSlideId
+  name: string;         // human label (usually "NN · Title")
+  description: string;  // what this layout is for / when to pick it
+  slots: CodeSlideSlot[];
+  preferredTypes?: Record<string, string[]>;  // slot key → PPTX placeholder types
+}
+
+export interface CodeSlideSlot {
+  key: string;          // "title", "content", "kpi", etc. — stable semantic name
+  label: string;        // German label for the UI
+  description?: string;
+  Component: React.FC;  // Renders this slot
+}
+```
+
+**How slot ↔ PPTX placeholder mapping works:** A `Slide` in the store carries `codeSlideId` (which template) and `codeSlotMapping` (semantic key → placeholder idx). This lets the same template work with PPTX layouts whose placeholder idx values differ. `preferredTypes` drives auto-mapping on assignment — specify sensible defaults.
+
+**When adding a new template:**
+
+1. Create `src/slides/templates/NN-<PascalName>.tsx` (pick next number).
+2. Export a `CodeSlide` object + default export.
+3. Register it in `src/slides/registry.ts`.
+4. Slots should be semantic (`title`, `content`, `kpi`, `source`) — not positional (`left`, `right`).
+5. Follow the Theme Contract (§3). No hardcoded colors.
+
+---
+
+## 6. Prompt assembly (how agents see the slide)
+
+`src/components/AnnotationLayer.tsx` builds `buildCopilotPrompt()` when the user clicks for feedback. It injects:
+
+- Master / layout name, slide id, ordinal
+- Render dimensions + aspect ratio
+- All 8 theme CSS vars (verbatim, resolved)
+- All placeholders in the layout with position + current content
+- Click position + nearest placeholder
+- User's feedback comment
+
+Agents receiving this prompt should **not** ask for colors / dimensions — they are already in the prompt. They **should** read `AGENTS.md` for authoring rules and the Slide 24 reference example.
+
+**Stage 2 (planned):** The prompt will also embed a serialized `.slidebuilder/template-context.md` with full layout inventory and sample slides.
+
+---
+
+## 7. The team process (4 roles)
+
+Slide creation follows a **review loop**, not a single prompt. Based on how pro slide teams work (McKinsey VG/QC, design agency CD/AD/brand split, Duarte narrative-first):
+
+| Role | Canonical spec | Mission | Veto |
+|---|---|---|---|
+| **Narrative Director** | [`docs/roles/narrative-director.md`](docs/roles/narrative-director.md) | Decide *what* is said and *in what hierarchy*. Pyramid Principle (Minto), content reduction. | Rejects if brief is unclear or content exceeds one slide. |
+| **Visual Director** | [`docs/roles/visual-director.md`](docs/roles/visual-director.md) | Pick the right CodeSlide template, map content to slots, balance composition. | Rejects if no template fits or slots overflow. |
+| **Brand Guardian (CD)** | [`docs/roles/brand-guardian.md`](docs/roles/brand-guardian.md) | Enforce §3 Theme Contract — every color, font, dimension via `var(--slide-*)`. | Rejects any hardcoded color, raw hex, or fixed pixel width. |
+| **QA Lead** | [`docs/roles/qa-lead.md`](docs/roles/qa-lead.md) | Final gate. All 3 above signed off? Brief answered? Approve, loop back, or escalate. | Escalates to user after 3 loops. |
+
+**Flow:** user brief → Narrative → Visual → Brand → QA → (loop on fail) → result. Max 3 loops per slide.
+
+### Canonical skills
+
+Platform-neutral skill specs live in `docs/skills/` and are referenced by every platform adapter:
+
+- [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the 4-role loop.
+- [`docs/skills/load-template-context.md`](docs/skills/load-template-context.md) — read active PPTX theme + layouts.
+- [`docs/skills/validate-against-theme.md`](docs/skills/validate-against-theme.md) — scan a diff/file for Theme Contract violations.
+
+### Platform adapters
+
+Adapters are thin — they set platform-specific frontmatter (tools, model, description) and defer to the canonical specs above.
+
+| Platform | Roles | Skills | Orchestrator |
+|---|---|---|---|
+| **Claude Code** | `.claude/agents/{narrative-director,visual-director,brand-guardian,qa-lead}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
+| **GitHub Copilot** | `.github/chatmodes/{narrative-director,visual-director,brand-guardian,qa-lead}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
+| **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
+
+**Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 4 checks** — narrative clarity, template fit, theme compliance, brief alignment — before presenting output.
+
+---
+
+## 8. Directory map (what lives where)
+
+```
+src/
+  parser/pptxParser.ts      — PPTX → ParsedPresentation (masters, theme, layouts)
+  store/slideStore.ts       — Zustand state: masters, slides, selection
+  lib/slideSize.ts          — EMU ↔ px math, aspect ratio
+  slides/
+    types.ts                — CodeSlide / CodeSlideSlot interfaces (READ-ONLY in spirit)
+    registry.ts             — List of all CodeSlides
+    templates/
+      _shared.tsx           — WireBlock, WireGrid, WireTitle, WireLegend (theme-aware)
+      01-ExecutiveMessageFirst.tsx … 25-AppendixSourceGrid.tsx
+      24-PyramidHierarchy.tsx  ★ reference example (§3)
+    DI Workshop/             — Project-specific slides
+    dora-pam/                — Project-specific slides
+  components/
+    DynamicSlide.tsx        — Renders a slide with theme.cssVars applied
+    SlideCanvas.tsx         — Host + scaling
+    AnnotationLayer.tsx     — buildCopilotPrompt (§6)
+    SettingsPanel.tsx       — Template picker, slot mapping UI
+    ExportButton.tsx        — PNG / PPTX export
+```
+
+---
+
+## 9. Commands
+
+```
+npm run dev       # Vite dev server (localhost:5173)
+npm run build     # tsc --noEmit + vite build
+npm run preview   # preview production build
+```
+
+No test runner configured. Verification is manual: load a PPTX, visually check slide 24 renders with the uploaded theme (not amber/slate).
+
+---
+
+## 10. Red flags to catch in review
+
+- `bg-amber-*`, `bg-blue-*`, `bg-red-*`, `text-green-*`, `border-purple-*` inside `src/slides/templates/**` → **violates §3**.
+- `width: "400px"`, `height: "300px"` inside slide templates → **violates §4**.
+- A new `.tsx` slide that doesn't register in `src/slides/registry.ts` → will not appear in the picker.
+- Slot `key` values that conflict with existing semantic keys elsewhere (e.g. `"body"` vs `"content"`) → pick the already-used one for consistency.
