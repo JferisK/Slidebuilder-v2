@@ -1,5 +1,5 @@
 ---
-description: Orchestrate the 4-role team (Narrative → Visual → Brand → QA) to produce a slide. Usage: /create-slide <brief>
+description: Orchestrate the slide review team (Narrative → Visual → Brand → Visual Stylist → QA) to produce a slide. Usage: /create-slide <brief>
 argument-hint: <brief>
 ---
 
@@ -22,8 +22,10 @@ Follow the canonical orchestrator spec at `docs/skills/create-slide.md`.
    b. Dispatch `visual-director` with the Narrative Output verbatim. Capture the `# Visual Output`.
    c. Dispatch `brand-guardian` with the Visual Output. Capture the `# Brand Verdict`.
       - On `reject`: loop back to `visual-director` with the violation list. Increment loop_count. Re-enter step (c) after visual re-emits.
-   d. Run a real fit/screenshot check against the mapped PPTX layout when available.
-   e. Dispatch `qa-lead` with all prior outputs + fit/screenshot result + the original brief + loop_count. Capture `# QA Verdict`.
+   d. Dispatch `visual-stylist` with Narrative + Visual outputs and screenshot/render context. Capture `# Visual Stylist Verdict`.
+      - On `reject`: loop back to `visual-director` with the visual issues. Increment loop_count.
+   e. Run a real fit/screenshot check against the mapped PPTX layout when available.
+   f. Dispatch `qa-lead` with all prior outputs + fit/screenshot result + the original brief + loop_count. Capture `# QA Verdict`.
 
 3. **On QA `approve`**: present the final slide output + a short process summary to the user. Done.
 

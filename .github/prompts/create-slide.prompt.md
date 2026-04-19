@@ -1,6 +1,6 @@
 ---
 mode: agent
-description: Orchestrate the 4-role slide production team (Narrative → Visual → Brand → QA) with loop-back on failure. Max 3 loops, then escalate.
+description: Orchestrate the slide review team (Narrative → Visual → Brand → Visual Stylist → QA) with loop-back on failure. Max 3 loops, then escalate.
 ---
 
 # /create-slide
@@ -13,7 +13,7 @@ Read `docs/skills/create-slide.md` in the workspace. That file is the orchestrat
 
 ## Execution
 
-Copilot does not spawn subagents the way Claude Code does. Run the 4 roles sequentially in one chat session, switching to the matching chatmode for each step:
+Copilot does not spawn subagents the way Claude Code does. Run the roles sequentially in one chat session, switching to the matching chatmode for each step:
 
 1. **Pre-flight**: invoke the `load-template-context` prompt. If no template context, stop and tell the user to upload a PPTX.
 
@@ -22,8 +22,10 @@ Copilot does not spawn subagents the way Claude Code does. Run the 4 roles seque
    b. Switch to `visual-director` chatmode. Input: Narrative Output. Output: `# Visual Output`.
    c. Switch to `brand-guardian` chatmode. Input: Visual Output. Output: `# Brand Verdict`.
       - On `reject`: return to `visual-director` with the violation list. Increment loop_count. Re-run step (c) after re-emit.
-   d. Run a real fit/screenshot check against the mapped PPTX layout when available.
-   e. Switch to `qa-lead` chatmode. Input: all prior outputs + fit/screenshot result + the brief + loop_count. Output: `# QA Verdict`.
+   d. Switch to `visual-stylist` chatmode. Input: Narrative Output + Visual Output + screenshot/render context. Output: `# Visual Stylist Verdict`.
+      - On `reject`: return to `visual-director` with the visual issues. Increment loop_count.
+   e. Run a real fit/screenshot check against the mapped PPTX layout when available.
+   f. Switch to `qa-lead` chatmode. Input: all prior outputs + fit/screenshot result + the brief + loop_count. Output: `# QA Verdict`.
 
 3. **On QA `approve`**: present the final slide output + a short process summary.
 

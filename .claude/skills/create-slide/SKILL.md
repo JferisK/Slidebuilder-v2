@@ -1,11 +1,11 @@
 ---
 name: create-slide
-description: Orchestrates the 4-role slide production team (Narrative → Visual → Brand → QA) with loop-back on failure. Use when user asks to build, create, or rework a slide. Caps at 3 loops then escalates.
+description: Orchestrates the slide review team (Narrative → Visual → Brand → Visual Stylist → QA) with loop-back on failure. Use when user asks to build, create, or rework a slide. Caps at 3 loops then escalates.
 ---
 
 # create-slide
 
-Orchestrate the full 4-role team to produce one slide that answers the user's brief in the visual identity of the loaded PPTX.
+Orchestrate the full slide review team to produce one slide that answers the user's brief in the visual identity of the loaded PPTX.
 
 ## Canonical spec
 
@@ -19,8 +19,10 @@ Each role is a subagent under `.claude/agents/`. Dispatch them in order via the 
 2. `subagent_type: visual-director` → prompt with the Narrative Output verbatim. Wait for `# Visual Output`.
 3. `subagent_type: brand-guardian` → prompt with the Visual Output. Wait for `# Brand Verdict`.
    - If `reject`: loop back to visual-director with the violation list. Increment loop counter. Do not proceed to QA.
-4. Run a real fit/screenshot check against the mapped PPTX layout when available. Verify placeholder fit before QA.
-5. `subagent_type: qa-lead` → prompt with all prior outputs + fit/screenshot result + the original brief + current loop counter. Wait for `# QA Verdict`.
+4. `subagent_type: visual-stylist` → prompt with the Narrative + Visual outputs and screenshot/render context. Wait for `# Visual Stylist Verdict`.
+   - If `reject`: loop back to visual-director with the visual issues. Increment loop counter. Do not proceed to QA.
+5. Run a real fit/screenshot check against the mapped PPTX layout when available. Verify placeholder fit before QA.
+6. `subagent_type: qa-lead` → prompt with all prior outputs + fit/screenshot result + the original brief + current loop counter. Wait for `# QA Verdict`.
    - If `approve`: present final output + process summary to the user. Done.
    - If `loop_back`: re-dispatch the named `loop_target` role. Increment loop counter.
    - If `escalate`: present the diagnostic + [A]/[B]/[C] options to the user. Stop.

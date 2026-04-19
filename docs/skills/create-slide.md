@@ -3,7 +3,7 @@
 > Canonical skill spec — platform-neutral. Referenced by `.claude/commands/create-slide.md`, `.claude/skills/create-slide/SKILL.md`, `.github/prompts/create-slide.prompt.md`.
 
 ## Purpose
-Orchestrate the 4-role team (Narrative → Visual → Brand → QA) to produce a single slide that answers the user's brief in the visual identity of the currently loaded PPTX template.
+Orchestrate the review team (Narrative → Visual → Brand → Visual Stylist → Fit/Screenshot → QA) to produce a single slide that answers the user's brief in the visual identity of the currently loaded PPTX template.
 
 ## When to invoke
 - User asks "baue mir einen Slide über X" / "create a slide about X".
@@ -28,9 +28,11 @@ brief
   ↓
 [3] Brand Guardian      → approve / reject (veto power)
   ↓  (if reject → back to Visual)
-[4] Screenshot / Fit check → real placeholder fit + rendered output sanity
+[4] Visual Stylist      → approve / reject + visual changes + placeholder prompts
+  ↓  (if reject → back to Visual)
+[5] Screenshot / Fit check → real placeholder fit + rendered output sanity
   ↓  (if fail → back to Visual)
-[5] QA Lead             → approve / loop_back / escalate
+[6] QA Lead             → approve / loop_back / escalate
   ↓  (if loop_back → back to named role)
   ↓  (if escalate → return diagnostic to user)
 final output to user
@@ -55,8 +57,13 @@ For each role, hand off the previous role's structured output verbatim and let t
    - Output: `# Brand Verdict` — `approve` or `reject` with violation list.
    - On reject: loop back to Visual Director with the violation list. Do not proceed to QA.
 
-4. **QA Lead** (`docs/roles/qa-lead.md`)
-   - Input: Narrative Output + Visual Output + Brand Verdict + fit/screenshot verdict + original brief + loop counter.
+4. **Visual Stylist** (`docs/roles/visual-stylist.md`)
+   - Input: Narrative Output + Visual Output + screenshot/render context when available.
+   - Output: `# Visual Stylist Verdict` — `approve` or `reject` with concrete visual changes and optional placeholder prompts.
+   - On reject: loop back to Visual Director with the visual issues.
+
+5. **QA Lead** (`docs/roles/qa-lead.md`)
+   - Input: Narrative Output + Visual Output + Brand Verdict + Visual Stylist Verdict + fit/screenshot verdict + original brief + loop counter.
    - Output: `# QA Verdict` — `approve` | `loop_back` | `escalate`.
    - On approve: present final output to user with process summary.
    - On loop_back: return to named `loop_target` role, increment loop counter.
@@ -78,6 +85,7 @@ If screenshot generation is unavailable, treat the slide as **not yet fully veri
 - [ ] Template context was loaded before Narrative Director was dispatched.
 - [ ] Each role's output is passed to the next role unmodified (no summarization that strips required fields).
 - [ ] Loop counter is tracked and included in every QA Lead dispatch.
+- [ ] Visual Stylist reviewed screenshot/readability when available.
 - [ ] Real placeholder fit was checked before QA approval.
 - [ ] Screenshot/render output was reviewed when available.
 - [ ] On escalation, the diagnostic is presented to the user — the orchestrator does not silently retry or silently accept.
