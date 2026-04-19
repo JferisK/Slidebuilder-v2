@@ -1,17 +1,6 @@
 import * as React from "react";
 import type { CodeSlide } from "../types";
-import {
-  DenseEditorialCard,
-  DenseStatementStrip,
-  EditorialLeadBand,
-  LayerStack,
-  PALETTE,
-  PaletteRibbon,
-  StandardTitle,
-  mix,
-  SectionLead,
-  SurfacePanel,
-} from "./_shared";
+import { PALETTE, StandardTitle, mix } from "./_shared";
 
 const TitleSlot: React.FC = () => (
   <StandardTitle
@@ -24,48 +13,63 @@ const TitleSlot: React.FC = () => (
   />
 );
 
-const EvidenceLine: React.FC<{
+const DefenseStep: React.FC<{
+  step: string;
   title: string;
   text: string;
-  tone: "risk" | "signal" | "trust" | "primary";
-}> = ({ title, text, tone }) => {
+  tone: "primary" | "trust" | "signal";
+}> = ({ step, title, text, tone }) => {
   const color =
-    tone === "risk"
-      ? PALETTE.risk
+    tone === "trust"
+      ? PALETTE.trust
       : tone === "signal"
         ? PALETTE.signal
-        : tone === "trust"
-          ? PALETTE.trust
-          : PALETTE.primary;
+        : PALETTE.primary;
 
   return (
     <div
       style={{
+        padding: "8px 10px",
+        borderRadius: 6,
+        background: mix(PALETTE.bg, color, 7),
+        borderLeft: `3px solid ${color}`,
         display: "grid",
-        gridTemplateColumns: "74px 1fr",
-        gap: 10,
-        alignItems: "start",
-        padding: "6px 0",
-        borderBottom: `1px solid ${mix(color, "transparent", 18)}`,
+        gap: 3,
       }}
     >
       <div
         style={{
-          color,
-          fontSize: 9,
-          lineHeight: 1.1,
-          textTransform: "uppercase",
-          letterSpacing: "0.14em",
-          fontFamily: PALETTE.heading,
+          display: "flex",
+          gap: 8,
+          alignItems: "baseline",
         }}
       >
-        {title}
+        <span
+          style={{
+            color,
+            fontSize: 10,
+            lineHeight: 1,
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          {step}
+        </span>
+        <span
+          style={{
+            color,
+            fontSize: 14,
+            lineHeight: 1.04,
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          {title}
+        </span>
       </div>
       <div
         style={{
           color: PALETTE.text,
           fontSize: 11,
-          lineHeight: 1.16,
+          lineHeight: 1.17,
           fontFamily: PALETTE.body,
         }}
       >
@@ -79,177 +83,221 @@ const BodySlot: React.FC = () => (
   <div
     style={{
       height: "100%",
-        display: "grid",
-        gridTemplateRows: "auto 1fr auto",
+      display: "grid",
+      gridTemplateRows: "auto 1fr auto",
       gap: 8,
-      padding: "1.1%",
-      borderRadius: 18,
-      background: `linear-gradient(180deg, ${mix(PALETTE.bg, PALETTE.secondary, 93)}, ${mix(
-        PALETTE.primary,
-        PALETTE.bg,
-        5,
-      )})`,
-      border: `1px solid ${mix(PALETTE.primary, "transparent", 18)}`,
+      padding: "0.5% 0.2%",
     }}
   >
-    <EditorialLeadBand tone="deep" style={{ fontSize: 14, lineHeight: 1.18, padding: "12px 16px" }}>
-      Deepfakes greifen zwei Pruefwelten zugleich an: automatisierte Biometrie und menschliche
-      Vertrauensentscheidungen. Dadurch wird IAM von einem Login-Thema zu einem mehrschichtigen
-      Identitaets-, Freigabe- und Reaktionsthema.
-    </EditorialLeadBand>
+    <div
+      style={{
+        width: "52%",
+        padding: "7px 10px",
+        borderRadius: 8,
+        background:
+          "linear-gradient(135deg, color-mix(in srgb, var(--slide-primary) 74%, var(--slide-text)), color-mix(in srgb, var(--slide-primary) 56%, var(--slide-text)))",
+        color: "var(--slide-bg)",
+        fontFamily: PALETTE.heading,
+        fontSize: 12,
+        lineHeight: 1.14,
+      }}
+    >
+      Deepfakes greifen automatisierte Biometrie und menschliche Vertrauensentscheidungen zugleich an.
+    </div>
 
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "0.92fr 1.08fr",
-        gap: 10,
+        gridTemplateColumns: "1.15fr 0.85fr",
+        gap: 18,
         minHeight: 0,
       }}
     >
-      <SurfacePanel tone="risk" className="grid h-full min-h-0 grid-rows-[auto_1fr] gap-2 p-2.5">
-        <SectionLead
-          eyebrow="Angriffsdruck"
-          title="Wie Deepfakes die Identitaetskette unterlaufen"
-          text="Nicht nur Menschen im Call, sondern auch Voice- und Face-Biometrics geraten unter Druck."
-          tone="risk"
-        />
-        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: "1fr auto", gap: 8 }}>
-          <div style={{ minHeight: 0, overflow: "hidden" }}>
-            <LayerStack
-              layers={[
-                {
-                  key: "spoof",
-                  title: "1. Identitaet wird imitiert",
-                  text: "Stimme, Gesicht oder Persona werden synthetisch nachgebaut und in einen glaubhaften Kontext gesetzt.",
-                  tone: "risk",
-                },
-                {
-                  key: "workflow",
-                  title: "2. Prozess wird unterlaufen",
-                  text: "Biometrische oder menschliche Pruefungen werden in Eile, Routine oder Ausnahmeprozessen umgangen.",
-                  tone: "signal",
-                },
-                {
-                  key: "approval",
-                  title: "3. Kritische Handlung wird freigegeben",
-                  text: "Rueckruf, Reset oder Freigabe kippen auf Basis falscher Identitaet und falschen Vertrauens.",
-                  tone: "trust",
-                },
-                {
-                  key: "impact",
-                  title: "4. Schaden eskaliert ueber Rechte",
-                  text: "Je maechtiger Konto, Rolle oder Prozessschritt, desto groesser die Wirkung des Angriffs.",
-                  tone: "primary",
-                },
-              ]}
-            />
-          </div>
-          <DenseEditorialCard
-            tone="deep"
-            density="tight"
-            style={{
-              display: "grid",
-              gap: 4,
-              background:
-                "linear-gradient(145deg, color-mix(in srgb, var(--slide-text) 88%, var(--slide-bg)), color-mix(in srgb, var(--slide-primary) 70%, var(--slide-text)))",
-              color: "var(--slide-bg)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: "0.14em",
-                color: mix(PALETTE.bg, "transparent", 72),
-                fontFamily: PALETTE.heading,
-              }}
-            >
-              Doppeldruck
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                lineHeight: 1.2,
-                color: mix(PALETTE.bg, "transparent", 92),
-                fontFamily: PALETTE.body,
-              }}
-            >
-              Deepfakes treffen Maschine und Mensch zugleich. Genau deshalb reichen Einzelkontrollen
-              nicht mehr.
-            </div>
-          </DenseEditorialCard>
-        </div>
-      </SurfacePanel>
-
-      <SurfacePanel tone="primary" className="grid h-full min-h-0 grid-rows-[auto_auto_1fr] gap-2 p-2.5">
-        <SectionLead
-          eyebrow="IAM-Antwort"
-          title="Welche Kontrollschichten jetzt tragen muessen"
-          text="Deepfake-Erkennung hilft, reicht aber nicht. Entscheidend sind Kontrollschichten rund um Identitaet, Freigabe und Reaktion."
-          tone="primary"
-        />
-        <DenseEditorialCard
-          tone="signal"
-          density="tight"
+      <div
+        style={{
+          minHeight: 0,
+          display: "grid",
+          gridTemplateRows: "auto 1fr auto",
+          gap: 10,
+          padding: "10px 8px 8px 0",
+          background:
+            "linear-gradient(120deg, color-mix(in srgb, var(--ppt-accent6, var(--slide-accent)) 9%, transparent), transparent 64%)",
+        }}
+      >
+        <div
           style={{
+            color: PALETTE.risk,
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          Angriffsdruck
+        </div>
+        <div
+          style={{
+            minHeight: 0,
             display: "grid",
-            gap: 5,
-            background:
-              "linear-gradient(180deg, color-mix(in srgb, var(--ppt-accent4, var(--slide-primary)) 14%, var(--slide-bg)), color-mix(in srgb, var(--slide-secondary) 80%, var(--slide-bg)))",
+            alignContent: "start",
+            gap: 8,
           }}
         >
           <div
             style={{
-              fontSize: 9,
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              color: PALETTE.signal,
+              color: PALETTE.risk,
+              fontSize: 28,
+              lineHeight: 0.96,
               fontFamily: PALETTE.heading,
+              maxWidth: "84%",
             }}
           >
-            Kernthese
+            KI greift genau die Momente an, in denen Identitaet geglaubt werden soll.
           </div>
+
+          {[
+            {
+              title: "Automatisierte Pruefung",
+              text: "Voice- und Face-Biometrics koennen synthetisch imitiert und gezielt unter Druck gesetzt werden.",
+              bg: "color-mix(in srgb, var(--ppt-accent6, var(--slide-accent)) 86%, var(--slide-bg))",
+            },
+            {
+              title: "Menschliche Entscheidung",
+              text: "Rueckruf-, Freigabe- und Support-Situationen lassen sich glaubhaft imitieren und unter Zeitdruck manipulieren.",
+              bg: "color-mix(in srgb, var(--ppt-accent4, var(--slide-primary)) 84%, var(--slide-bg))",
+            },
+            {
+              title: "Eskalation ueber Rechte",
+              text: "Je maechtiger Konto, Rolle oder Prozessschritt, desto groesser die Wirkung eines falschen Vertrauensmoments.",
+              bg: "color-mix(in srgb, var(--slide-primary) 84%, var(--slide-bg))",
+            },
+          ].map((item, index) => (
+            <div
+              key={item.title}
+              style={{
+                width: index === 1 ? "92%" : index === 2 ? "88%" : "96%",
+                marginLeft: index === 1 ? "3.5%" : index === 2 ? "7%" : 0,
+                padding: "8px 10px",
+                borderRadius: 6,
+                background: item.bg,
+              }}
+            >
+              <div
+                style={{
+                  color: PALETTE.bg,
+                  fontSize: 13,
+                  lineHeight: 1.04,
+                  fontFamily: PALETTE.heading,
+                }}
+              >
+                {item.title}
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  color: mix(PALETTE.bg, "transparent", 92),
+                  fontSize: 11,
+                  lineHeight: 1.17,
+                  fontFamily: PALETTE.body,
+                }}
+              >
+                {item.text}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            color: PALETTE.text,
+            fontSize: 12,
+            lineHeight: 1.14,
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          Deepfake-Erkennung hilft, reicht aber nicht als Einzelkontrolle.
+        </div>
+      </div>
+
+      <div
+        style={{
+          minHeight: 0,
+          display: "grid",
+          gridTemplateRows: "auto 1fr",
+          gap: 10,
+          alignContent: "start",
+        }}
+      >
+        <div
+          style={{
+            color: PALETTE.primary,
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            fontFamily: PALETTE.heading,
+          }}
+        >
+          Welche Antwort folgt
+        </div>
+        <div
+          style={{
+            minHeight: 0,
+            display: "grid",
+            alignContent: "start",
+            gap: 7,
+          }}
+        >
           <div
             style={{
-              color: PALETTE.text,
-              fontSize: 16,
-              lineHeight: 1.08,
+              color: PALETTE.primary,
+              fontSize: 24,
+              lineHeight: 0.96,
               fontFamily: PALETTE.heading,
+              maxWidth: "92%",
+              marginBottom: 4,
             }}
           >
-            Wenn Deepfakes billiger werden, muessen Kontrollen staerker auf Kontext, Prozess und
-            Reaktion setzen.
+            IAM muss von Zugangskontrolle zu Identitaetsverteidigung werden.
           </div>
-        </DenseEditorialCard>
-        <DenseEditorialCard tone="trust" density="tight" style={{ display: "grid", gap: 2 }}>
-          <EvidenceLine
-            title="MFA"
-            text="Starke, kontextbezogene MFA fuer riskante Aktionen statt nur fuer den ersten Login."
+          <DefenseStep
+            step="01"
+            title="Staerker verifizieren"
+            text="Kontextbezogene MFA fuer riskante Aktionen statt nur fuer den ersten Login."
             tone="primary"
           />
-          <EvidenceLine
-            title="Prozess"
-            text="Verifikation ausserhalb des angegriffenen Kanals: Rueckruf-, Freigabe- und Ausnahmewege muessen gegen Druck und Zeitnot gehaertet werden."
+          <DefenseStep
+            step="02"
+            title="Ausserhalb des Kanals pruefen"
+            text="Rueckruf-, Freigabe- und Ausnahmewege muessen gegen Druck und Zeitnot gehaertet werden."
             tone="trust"
           />
-          <EvidenceLine
-            title="Signals"
-            text="Zusatzsignale wie Geraet, Ort, Verhaltensmuster, Prozesskontext und Anomalien kompensieren, wenn Erkennung versagt."
+          <DefenseStep
+            step="03"
+            title="Zusatzsignale nutzen"
+            text="Geraet, Ort, Verhalten, Prozesskontext und Anomalien kompensieren, wenn Erkennung versagt."
             tone="signal"
           />
-          <EvidenceLine
-            title="ITDR"
-            text="Identity Detection and Response erweitert IAM von Rechtevergabe auf Sichtbarkeit, Erkennung, Priorisierung und Reaktion."
+          <DefenseStep
+            step="04"
+            title="ITDR einziehen"
+            text="Identity Detection and Response erweitert IAM von Rechtevergabe auf Sichtbarkeit, Priorisierung und Reaktion."
             tone="primary"
           />
-        </DenseEditorialCard>
-      </SurfacePanel>
+        </div>
+      </div>
     </div>
 
-    <DenseStatementStrip tone="risk" style={{ fontSize: 12, lineHeight: 1.06, padding: "6px 10px" }}>
-      Nicht den Deepfake isoliert loesen wollen. Widerstandsfaehig wird IAM erst dann, wenn starke
-      Identitaetspruefung, kanalunabhaengige Verifikation, Zusatzsignale und ITDR zusammenspielen.
-    </DenseStatementStrip>
+    <div
+      style={{
+        color: PALETTE.text,
+        fontSize: 11,
+        lineHeight: 1.18,
+        fontFamily: PALETTE.body,
+      }}
+    >
+      Merksatz: <span style={{ color: PALETTE.risk, fontFamily: PALETTE.heading }}>Nicht den Deepfake isoliert loesen.</span>{" "}
+      Widerstandsfaehig wird IAM erst dann, wenn starke Identitaetspruefung, kanalunabhaengige
+      Verifikation, Zusatzsignale und ITDR zusammenspielen.
+    </div>
   </div>
 );
 
