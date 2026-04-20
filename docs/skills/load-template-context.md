@@ -3,12 +3,15 @@
 > Canonical skill spec — platform-neutral. Referenced by `.claude/skills/load-template-context/SKILL.md` and `.github/prompts/load-template-context.prompt.md`.
 
 ## Purpose
-Load the currently active PPTX template's theme, dimensions, and layouts into the conversation so downstream roles (Narrative, Visual, Brand) can reason over concrete values instead of guessing.
+Load the currently active PPTX template's theme, dimensions, and layouts into the conversation so downstream roles (Content Strategist, Visual Designer, Brand Guardian) can reason over concrete values instead of guessing.
 
 ## When to invoke
-- Before the first dispatch in the `create-slide` orchestrator.
+- Before the Project Manager's Brief Lock in Phase 1 of the `create-slide` orchestrator.
 - Whenever the user says "ich habe eine neue PPTX hochgeladen" / "I uploaded a new template" and asks for new slides.
 - When a role reports that it is missing theme or layout information.
+
+## Next role
+The Project Manager consumes this context as part of its Brief Lock. The Content Strategist then receives the locked brief + this context verbatim.
 
 ## Source of truth (in priority order)
 

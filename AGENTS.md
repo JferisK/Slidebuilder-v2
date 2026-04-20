@@ -155,35 +155,50 @@ If the prompt includes a screenshot/render status, that status is part of the QA
 
 ---
 
-## 7. The team process (5 roles)
+## 7. The team process (6 roles, 4 phases)
 
-Slide creation follows a **review loop**, not a single prompt. Based on how pro slide teams work (McKinsey VG/QC, design agency CD/AD/brand split, Duarte narrative-first):
+Slide creation runs the playbook of a professional presentation agency: a **Project Manager** orchestrates **4 phases** (Intake → Concept → Design → QA) using a team of **6 specialists**. The flow is a review loop with loop-back on failure, hard-capped at 3 iterations.
 
-| Role | Canonical spec | Mission | Veto |
-|---|---|---|---|
-| **Narrative Director** | [`docs/roles/narrative-director.md`](docs/roles/narrative-director.md) | Decide *what* is said and *in what hierarchy*. Pyramid Principle (Minto), content reduction. | Rejects if brief is unclear or content exceeds one slide. |
-| **Visual Director** | [`docs/roles/visual-director.md`](docs/roles/visual-director.md) | Pick the right CodeSlide template, map content to slots, balance composition. | Rejects if no template fits or slots overflow. |
-| **Brand Guardian (CD)** | [`docs/roles/brand-guardian.md`](docs/roles/brand-guardian.md) | Enforce §3 Theme Contract — every color, font, dimension via `var(--slide-*)`. | Rejects any hardcoded color, raw hex, or fixed pixel width. |
-| **Visual Stylist** | [`docs/roles/visual-stylist.md`](docs/roles/visual-stylist.md) | Critique and improve visual drama, hierarchy, screenshot readability, and visualization opportunities. Proposes illustration/icon/placeholder prompts when assets are missing. | Rejects visually flat, dashboard-like, or unreadable compositions. |
-| **QA Lead** | [`docs/roles/qa-lead.md`](docs/roles/qa-lead.md) | Final gate. All 3 above signed off? Brief answered? Approve, loop back, or escalate. | Escalates to user after 3 loops. |
+### The 6 roles
 
-**Flow:** user brief → Narrative → Visual → Brand → Visual Stylist / Screenshot Review → QA → (loop on fail) → result. Max 3 loops per slide.
+| # | Role | Canonical spec | Mission | Veto |
+|---|---|---|---|---|
+| 1 | **Project Manager** | [`docs/roles/project-manager.md`](docs/roles/project-manager.md) | Own the process. Validate brief, lock strategy, track loop budget, escalate when stuck. | Refuses on vague brief or missing PPTX; forces escalation at loop 3. |
+| 2 | **Content Strategist** | [`docs/roles/content-strategist.md`](docs/roles/content-strategist.md) | Decide *what* is said and in what hierarchy. Pyramid / MECE / SCQA / Action Titles / Duarte contrast. | Rejects if core message cannot be derived or content exceeds one slide. |
+| 3 | **Visual Designer** | [`docs/roles/visual-designer.md`](docs/roles/visual-designer.md) | Pick the right CodeSlide template, map slots, control cognitive load, whitespace, placeholder fit. | Rejects if no template fits, slots overflow, or placeholder height is exceeded. |
+| 4 | **Illustrator** | [`docs/roles/illustrator.md`](docs/roles/illustrator.md) | Ensure visual metaphor, focal point, drama. Propose asset prompts when assets are missing. | Rejects visually flat, dashboard-like, or anchor-less compositions. |
+| 5 | **Brand Guardian** | [`docs/roles/brand-guardian.md`](docs/roles/brand-guardian.md) | Enforce the §3 Theme Contract — every color, font, dimension via `var(--slide-*)`. | Rejects any hardcoded color, raw hex, or fixed pixel width. |
+| 6 | **QA Manager** | [`docs/roles/qa-manager.md`](docs/roles/qa-manager.md) | Final gate. Run 7-point QA-Matrix. Approve, loop back to the right role, or escalate. | Escalates to user after 3 loops. |
+
+### The 4 phases
+
+1. **Intake & Briefing** — PM validates the brief (Objective, Audience, Core Message, Brand, Technical Context). **Fast path:** if the brief is lockable, PM silent-auto-locks and the user never sees questions. **Slow path:** up to 3 clarifying questions, then stop.
+2. **Concept & Storyboard** — Content Strategist emits `Narrative Output` (Action Title + SCQA + key statements + slide_type_hint). Visual Designer picks `codeSlideId` and maps slots. **Strategy Lock gate:** auto-passes on loop 1, PM re-verifies alignment on loop ≥ 2 or on QA thrash.
+3. **Design & Production** — Illustrator reviews visual drama and focal point. Brand Guardian scans the diff for Theme Contract violations. A **mechanical fit/screenshot check** verifies the slide fits the mapped PPTX placeholder. Any reject sends work back to Visual Designer.
+4. **QA & Delivery** — QA Manager runs the **7-point QA-Matrix** (Alignment, Farbkonsistenz, Datenkorrektheit, Placeholder-Drift, Technische Präzision, Markenkonformität, "so what"-Faktor). Verdict: `approve` | `loop_back` (with explicit `loop_target` role) | `escalate`. **Max 3 loops.**
+
+### Methods / vocabulary
+
+- **Pyramid Principle** (Minto) — answer first, then supporting arguments grouped by theme.
+- **MECE** — Mutually Exclusive, Collectively Exhaustive. Bullets must not overlap and together must cover the headline.
+- **SCQA** — Situation / Complication / Question / Answer. Frames slides that need context before the claim.
+- **Action Titles** — a slide headline is a declarative sentence making the claim, not a noun-phrase topic label.
+- **Duarte-Kontrast** — contrast "what is" against "what could be" to build narrative tension.
+- **7-point QA-Matrix** — the agency-standard final checklist (see QA Manager spec).
 
 ### Mandatory review additions
 
-The canonical 4-role loop still applies, but the following checks are now mandatory parts of the workflow:
+Fit + screenshot + source-depth checks are **not optional**:
 
-- **Fit / Placeholder review**: verify the slide against the real mapped PPTX placeholder, not just a free preview.
-- **Screenshot review**: when screenshoting/rendering is available, the review loop must inspect the actual output image before final approval.
-- **Source-depth review**: dense workshop slides should surface concrete source insights, not only topic labels or buzzwords.
-
-These checks can be embedded in Visual + QA or handled by additional reviewer passes, but they may not be skipped.
+- **Fit / Placeholder review** — verify against the real mapped PPTX placeholder, not just a free preview.
+- **Screenshot review** — when rendering is available, the loop must inspect the actual output image before final approval.
+- **Source-depth review** — dense workshop slides must surface concrete source insights, not only topic labels or buzzwords.
 
 ### Dense Handout mode
 
-Some workshop slides are intentionally more text-dense and are meant to support 8-10 minutes of speaking time.
+Some workshop slides are intentionally more text-dense, supporting 8-10 minutes of speaking time.
 
-When a slide is in **dense handout** mode:
+In **dense handout** mode:
 - more visible text is allowed
 - more concrete source-derived content is expected
 - layout discipline becomes stricter, not looser
@@ -194,7 +209,7 @@ When a slide is in **dense handout** mode:
 
 Platform-neutral skill specs live in `docs/skills/` and are referenced by every platform adapter:
 
-- [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — orchestrator for the full review loop, including fit/screenshot and visual styling.
+- [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — the 4-phase / 6-role orchestrator spec.
 - [`docs/skills/load-template-context.md`](docs/skills/load-template-context.md) — read active PPTX theme + layouts.
 - [`docs/skills/validate-against-theme.md`](docs/skills/validate-against-theme.md) — scan a diff/file for Theme Contract violations.
 
@@ -204,11 +219,11 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 
 | Platform | Roles | Skills | Orchestrator |
 |---|---|---|---|
-| **Claude Code** | `.claude/agents/{narrative-director,visual-director,brand-guardian,visual-stylist,qa-lead}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
-| **GitHub Copilot** | `.github/chatmodes/{narrative-director,visual-director,brand-guardian,visual-stylist,qa-lead}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
+| **Claude Code** | `.claude/agents/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
+| **GitHub Copilot** | `.github/chatmodes/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
-**Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 5 checks** — narrative clarity, template fit, theme compliance, visual strength, and brief alignment — before presenting output.
+**Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 6 checks** — brief clarity, narrative hierarchy, template fit, visual drama, theme compliance, and 7-point QA — before presenting output.
 
 Across all three platforms, slide creation should also prefer **existing frontend patterns already present in the repo**:
 - `src/components/ui/*`

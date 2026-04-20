@@ -1,6 +1,6 @@
 ---
 mode: agent
-description: Scan a diff or a file under src/slides/templates/ for Theme Contract violations (hardcoded colors, pixel widths, raw hex). Reports only — does not fix.
+description: Scan a diff or a file under src/slides/templates/ for Theme Contract violations (hardcoded colors, pixel widths, raw hex). Reports only — does not fix. Used by Brand Guardian in Phase 3.
 ---
 
 # /validate-against-theme
@@ -26,4 +26,4 @@ Scope to `src/slides/templates/` or the specific file under review.
 
 ## Output
 
-Return the `# Theme Validation` block from the canonical spec. For every violation: `file`, `line`, `issue`, `offending`, `fix` (from the cookbook in `docs/roles/brand-guardian.md`). Do not apply fixes — this prompt reports only.
+Return the `# Theme Validation` block from the canonical spec. For every violation: `file`, `line`, `issue`, `offending`, `fix` (from the cookbook in `docs/roles/brand-guardian.md`). Do not apply fixes — this prompt reports only and Visual Designer re-emits.

@@ -7,7 +7,7 @@ Scan a diff or a file in `src/slides/templates/**` for Theme Contract violations
 
 ## When to invoke
 - Before committing any change to `src/slides/templates/**`.
-- As part of the Brand Guardian role (see `docs/roles/brand-guardian.md`).
+- As part of the Brand Guardian role in Phase 3 of `create-slide` (see `docs/roles/brand-guardian.md`).
 - On demand when the user asks "ist diese Änderung CD-konform?" / "is this on-brand?".
 
 ## Inputs
@@ -71,6 +71,6 @@ On `pass`, `violations` is empty. On `fail`, every violation must have a concret
 
 ## Do not
 
-- Apply the fixes yourself. This skill reports only. Brand Guardian rejects; the Visual Director re-emits.
+- Apply the fixes yourself. This skill reports only. Brand Guardian rejects; the Visual Designer re-emits.
 - Skip violations because they're "minor". One hardcoded color erodes the contract.
 - Flag `slate-*` inside wireframe debug paths. Focus on production rendering.

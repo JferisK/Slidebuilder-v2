@@ -1,6 +1,6 @@
 ---
 name: validate-against-theme
-description: Scans a diff or file in src/slides/templates/ for Theme Contract violations (hardcoded colors, pixel widths, raw hex). Reports violations with cookbook fixes. Use before commits and as part of Brand Guardian's review.
+description: Scans a diff or file in src/slides/templates/ for Theme Contract violations (hardcoded colors, pixel widths, raw hex). Reports violations with cookbook fixes. Use before commits and as part of Brand Guardian's Phase-3 review.
 ---
 
 # validate-against-theme
@@ -23,4 +23,4 @@ Set `path` to `src/slides/templates/` or to the specific file under review.
 
 ## Output
 
-Return the `# Theme Validation` block from the canonical spec. Do not apply fixes — this skill reports.
+Return the `# Theme Validation` block from the canonical spec. Do not apply fixes — this skill reports and Visual Designer re-emits.
