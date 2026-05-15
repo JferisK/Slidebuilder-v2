@@ -11,19 +11,49 @@ npm run dev
 
 Danach läuft die App lokal unter `http://localhost:5173`. Es gibt kein Backend; Parsing, Mapping und Rendering passieren im Browser.
 
-## UI-Verwendung
+## App verwenden
 
-1. Eine `.pptx` per Drag & Drop oder Dateidialog hochladen.
-2. Einen Folienmaster und das passende Layout auswählen.
-3. Inhalte im rechten Panel bearbeiten oder einer React-basierten CodeSlide zuordnen.
-4. Auf die Folie klicken, einen Kommentar schreiben und den erzeugten Kontext an Claude, Copilot oder Codex weitergeben.
-5. Die fertige Folie als PNG exportieren oder zurück in den PPTX-Flow geben.
+SlideForge ist für den praktischen Ablauf gebaut: PowerPoint-Master hochladen, eine passende React-Slide auswählen, sie in die echte Placeholder-Geometrie der Vorlage einpassen und das Ergebnis als Bild exportieren.
 
-## Wie erstellt man professionelle Folien?
+1. **PPTX-Vorlage hochladen**: Lade eine `.pptx` per Drag & Drop oder Dateidialog hoch. SlideForge liest Master, Layouts, Placeholder, Farben und Schriften lokal im Browser aus.
+2. **Master und Layout wählen**: Wähle im rechten Panel unter `PPTX-Struktur` die aktive Vorlage, den Folienmaster und das Layout.
+3. **Projekt oder Repo-Folie wählen**: Wähle unter `Projekt & Folien` einen Projekt- oder Repo-Ordner und lade eine vorhandene Slide oder eine zentrale Vorlage.
+4. **Bereiche und Inhalte prüfen**: Ordne CodeSlide-Slots den PowerPoint-Bereichen zu, blende unnötige Placeholder aus und markiere Inhalte oder Elemente gezielt auf der Folie.
+5. **Prompt nutzen und exportieren**: Kopiere Feedback als Kontext-Prompt für Claude, Copilot oder Codex. Nach der Umsetzung exportierst du die sichtbare Folie über `Als PNG exportieren`.
 
-SlideForge ist nicht als allgemeines Design-Tool gedacht. Das Ziel ist enger und anspruchsvoller: Inhalte sollen innerhalb der visuellen Identität des hochgeladenen PowerPoint-Masters entstehen. Farben, Typografie, Seitenverhältnis und Placeholder-Geometrie kommen aus der Vorlage. Neue Slides müssen sich so verhalten, als wären sie für genau diese Masterfolie entworfen worden.
+Hochgeladene Vorlagen, Projektmetadaten und Brand Guides werden lokal im Browser gespeichert. Ein echter Projektordner wird nur verknüpft, wenn der Browser den Dateisystemzugriff unterstützt und du die Berechtigung erteilst.
 
-Damit das nicht in eine lose "schreib mir mal eine schöne Folie"-Pipeline abrutscht, folgt das Projekt dem Arbeitsmodell einer Präsentations-Agentur. Ein 6-Rollen-Team arbeitet in 4 Phasen. Die Rollen sind keine dekorativen Labels, sondern klar getrennte Qualitätsgates: Brief schärfen, Message festlegen, Template wählen, visuelle Dramaturgie prüfen, Brand-Konformität erzwingen und erst dann final freigeben.
+## Export
+
+Der sichtbare Export in der App ist aktuell PNG. Der Button `Als PNG exportieren` rendert die aktive Folie in hoher Auflösung aus der aktuellen Canvas-Ansicht. Ein vollständiger PPTX-Re-Export ist nicht der primäre UI-Flow dieser Version.
+
+## Mit KI-Agenten arbeiten
+
+Die App erzeugt Kontext-Prompts mit Master, Layout, Theme-Variablen, Placeholder-Geometrie, markierten Elementen und deinem Kommentar. Diese Prompts sind für Claude, GitHub Copilot oder OpenAI Codex gedacht und sollen CodeSlide-Änderungen im Repo präzise anstoßen.
+
+### Claude Code
+
+**Was tippst du:** `/create-slide <Brief>` oder eine direkte Arbeitsanweisung im Repo.
+
+**Was passiert:** Claude lädt den Template-Kontext, lockt den Brief und arbeitet die Rollenfolge aus `docs/roles/` ab. Bei Fehlern läuft der definierte Loop-back-Pfad.
+
+### GitHub Copilot
+
+**Was tippst du:** den Prompt `/create-slide` oder den aus SlideForge kopierten Kontext im Copilot-Chat.
+
+**Was passiert:** Copilot nutzt die Chatmodes und Prompts unter `.github/`, liest aber dieselben kanonischen Specs wie die anderen Plattformen.
+
+### OpenAI Codex
+
+**Was tippst du:** eine Anweisung wie `Befolge docs/skills/create-slide.md für diesen Brief: ...`.
+
+**Was passiert:** Codex liest `AGENTS.md`, `docs/skills/*.md` und `docs/roles/*.md` direkt und setzt Änderungen im Repo um.
+
+## Professionelle Folien erstellen
+
+SlideForge ist kein allgemeines Design-Tool. Das Ziel ist enger: Inhalte sollen innerhalb der visuellen Identität des hochgeladenen PowerPoint-Masters entstehen. Farben, Typografie, Seitenverhältnis und Placeholder-Geometrie kommen aus der Vorlage. Neue Slides müssen sich so verhalten, als wären sie für genau diese Masterfolie entworfen worden.
+
+Für Agenten-gestützte Slide-Erstellung gilt deshalb das Arbeitsmodell einer Präsentations-Agentur: 6 Rollen, 4 Phasen, klare Qualitätsgates.
 
 ### Die 6 Rollen
 
@@ -38,10 +68,10 @@ Damit das nicht in eine lose "schreib mir mal eine schöne Folie"-Pipeline abrut
 
 ### Die 4 Phasen
 
-1. **Intake & Briefing**: Der Project Manager prüft, ob Ziel, Publikum, Kernaussage und technischer Kontext aus dem Brief ableitbar sind. Im Fast Path lockt er den Brief still im Hintergrund. Bei Unklarheit stellt er maximal drei gezielte Rückfragen.
-2. **Concept & Storyboard**: Der Content Strategist formuliert die Aussage der Folie. Danach wählt der Visual Designer die passende CodeSlide und übersetzt die Narrative in konkrete Slots, Hierarchie und Layout-Entscheidungen.
-3. **Design & Production**: Der Illustrator prüft, ob die Folie visuell trägt oder nur korrekt angeordnete Boxen zeigt. Anschließend scannt der Brand Guardian die Änderung gegen den Theme Contract. Zusätzlich ist ein mechanischer Fit-Check gegen die reale PPTX-Placeholder-Geometrie Pflicht.
-4. **QA & Delivery**: Der QA Manager liest Brief und Ergebnis noch einmal gegen die 7-Punkt-QA-Matrix. Maximal drei End-to-End-Loops sind erlaubt. Danach wird nicht weitergedreht, sondern eskaliert.
+1. **Intake & Briefing**: Ziel, Publikum, Kernaussage und technischer Kontext werden geklärt.
+2. **Concept & Storyboard**: Aussage, Action Title, Slide-Typ, Template und Slot-Mapping werden festgelegt.
+3. **Design & Production**: Visuelle Dramaturgie, Theme Contract, Brand Guide und Placeholder-Fit werden geprüft.
+4. **QA & Delivery**: Die 7-Punkt-QA-Matrix entscheidet über Freigabe, Loop-back oder Eskalation.
 
 ### Methoden
 
@@ -52,29 +82,9 @@ Damit das nicht in eine lose "schreib mir mal eine schöne Folie"-Pipeline abrut
 - **Duarte-Kontrast**: "Was ist" gegen "was sein könnte" setzen, wenn narrative Spannung nötig ist.
 - **QA-Matrix**: Alignment, Farbkonsistenz, Datenkorrektheit, Placeholder-Fit, technische Präzision, Markenkonformität und "so what".
 
-## Pro Plattform
+## Folienmaster und Brand Guide
 
-### Claude Code
-
-**Was tippst Du:** `/create-slide <Brief>` oder eine direkte Arbeitsanweisung im Repo.  
-**Was passiert:** Claude lädt zuerst den Template-Kontext, lässt den Project Manager den Brief locken und arbeitet dann die Rollenfolge `project-manager → content-strategist → visual-designer → illustrator → brand-guardian → qa-manager` ab. Bei Fehlern läuft der definierte Loop-back-Pfad, nicht ein improvisierter Retry.  
-**Wo liegen die Files:** Rollenadapter in `.claude/agents/`, Skills in `.claude/skills/`, der nutzerseitige Einstieg in `.claude/commands/create-slide.md`.
-
-### GitHub Copilot
-
-**Was tippst Du:** den Prompt `/create-slide` oder eine Aufgabenstellung im Copilot-Chat.  
-**Was passiert:** Copilot arbeitet dieselbe kanonische Orchestrierung ab, aber als Chatmode-Wechsel statt Subagent-Dispatch. Die Rollen lesen dieselben kanonischen Specs unter `docs/roles/` und dieselbe Orchestrator-Logik unter `docs/skills/create-slide.md`.  
-**Wo liegen die Files:** Chatmodes in `.github/chatmodes/`, ausführbare Prompts in `.github/prompts/`, projektspezifische Leitplanken in `.github/copilot-instructions.md`.
-
-### OpenAI Codex
-
-**Was tippst Du:** eine Anweisung wie „Befolge `docs/skills/create-slide.md` für diesen Brief: …“.  
-**Was passiert:** Codex nutzt keine Adapter-Schicht, sondern liest `AGENTS.md`, `docs/skills/*.md` und `docs/roles/*.md` direkt. Dadurch bleibt die Prozesslogik identisch, auch wenn die Ausführung inline in einer Session statt in getrennten Chatmodes oder Subagents läuft.  
-**Wo liegen die Files:** Der Einstieg sitzt in `AGENTS.md`, die Orchestrierung in `docs/skills/create-slide.md`, die Rollen in `docs/roles/`.
-
-## Folienmaster hinzufügen
-
-Neue Folienmaster kommen durch Upload einer weiteren `.pptx` in die App. Theme, Layouts und Placeholder werden automatisch aus der Datei extrahiert.
+Neue Folienmaster kommen durch Upload einer weiteren `.pptx` in die App. Theme, Layouts und Placeholder werden automatisch aus der Datei extrahiert. Der Bereich `Brand Guide` im rechten Panel speichert zusätzliche Markenregeln pro Vorlage und Master, damit KI-Agenten nicht nur die PowerPoint-Farben, sondern auch die gewünschte Markeninterpretation kennen.
 
 ## Weiterlesen
 
