@@ -87,7 +87,9 @@ export const SlideCanvas: React.FC = () => {
   const activeTemplate = activeTemplateId
     ? templates.find((t) => t.id === activeTemplateId)
     : undefined;
-  const activeBrandGuide = activeTemplate?.brandGuides?.[activeMaster.id];
+  const brandGuidePath = activeTemplate
+    ? `.slidebuilder/brand-guides/${activeTemplate.id}/${activeMaster.id}.md`
+    : undefined;
   const mapping = activeSlide.codeSlotMapping;
   const codeSlotsByIdx = React.useMemo(() => {
     if (!codeSlide || !mapping) return undefined;
@@ -170,7 +172,7 @@ export const SlideCanvas: React.FC = () => {
               themeColors={
                 activeMaster.theme.cssVars as unknown as Record<string, string>
               }
-              brandGuide={activeBrandGuide}
+              brandGuidePath={brandGuidePath}
             />
           </div>
         </div>

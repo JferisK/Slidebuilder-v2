@@ -210,6 +210,7 @@ In **dense handout** mode:
 Platform-neutral skill specs live in `docs/skills/` and are referenced by every platform adapter:
 
 - [`docs/skills/create-slide.md`](docs/skills/create-slide.md) — the 4-phase / 6-role orchestrator spec.
+- [`docs/skills/create-brand-guide.md`](docs/skills/create-brand-guide.md) — create/update the repo Markdown Brand Guide for one PPTX master.
 - [`docs/skills/load-template-context.md`](docs/skills/load-template-context.md) — read active PPTX theme + layouts.
 - [`docs/skills/validate-against-theme.md`](docs/skills/validate-against-theme.md) — scan a diff/file for Theme Contract violations.
 
@@ -219,8 +220,8 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 
 | Platform | Roles | Skills | Orchestrator |
 |---|---|---|---|
-| **Claude Code** | `.claude/agents/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.md` | `.claude/skills/{create-slide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` (slash command `/create-slide <brief>`) |
-| **GitHub Copilot** | `.github/chatmodes/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,load-template-context,validate-against-theme}.prompt.md` |
+| **Claude Code** | `.claude/agents/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.md` | `.claude/skills/{create-slide,create-brand-guide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` + `.claude/commands/create-brand-guide.md` |
+| **GitHub Copilot** | `.github/chatmodes/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,create-brand-guide,load-template-context,validate-against-theme}.prompt.md` |
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
 **Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 6 checks** — brief clarity, narrative hierarchy, template fit, visual drama, theme compliance, and 7-point QA — before presenting output.

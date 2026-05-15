@@ -23,11 +23,11 @@ Orchestrate the 6-role agency team through 4 phases (Intake → Concept → Desi
 
 ## Inputs
 - **Brief**: the user's free-form request.
-- **Template context**: the currently loaded PPTX's theme + layouts + Brand Guide status. Source order:
+- **Template context**: the currently loaded PPTX's theme + layouts + repo Brand Guide path/status. Source order:
   1. `.slidebuilder/template-context.md` (Stage 2, if it exists)
   2. Otherwise: read theme from `src/store/slideStore.ts` / `buildCopilotPrompt` output
   3. Otherwise: ask the user to upload a PPTX first — do not fabricate theme values
-- **Brand Guide**: if present, pass it verbatim to Visual Designer, Brand Guardian, and QA. If missing, warn that brand interpretation is weaker and recommend `/create-brand-guide`, but do not hard-block slide creation.
+- **Brand Guide**: if the repo file at `.slidebuilder/brand-guides/<template_id>/<master_id>.md` is present, pass it verbatim to Visual Designer, Brand Guardian, and QA. If missing, warn that brand interpretation is weaker and recommend `/create-brand-guide`, but do not hard-block slide creation.
 
 ## The 4 phases
 
@@ -152,7 +152,7 @@ If screenshot generation is unavailable, treat the slide as **not yet fully veri
 ## Quality gates for the orchestrator itself
 
 - [ ] Template context was loaded before Content Strategist was dispatched.
-- [ ] Brand Guide status (`present` or `missing`) was carried from template context into Brand Guardian and QA.
+- [ ] Brand Guide path/status (`present` or `missing`) was carried from template context into Brand Guardian and QA.
 - [ ] Project Manager ran in Phase 1 (even in fast path, silently).
 - [ ] Each role's output is passed to the next role unmodified (no summarization that strips required fields).
 - [ ] Loop counter is tracked and included in every QA Manager dispatch.
@@ -191,7 +191,7 @@ For each role, hand off the previous role's structured output **verbatim** and l
    - On reject: loop back to Visual Designer.
 
 5. **Brand Guardian** (`docs/roles/brand-guardian.md`)
-   - Input: Visual Output + Illustrator updates + Brand Guide status/content.
+   - Input: Visual Output + Illustrator updates + Brand Guide path/status/content.
    - Output: `# Brand Verdict` — `approve` or `reject` with `brand_guide_status`, violations + cookbook fixes.
    - On reject: loop back to Visual Designer.
 

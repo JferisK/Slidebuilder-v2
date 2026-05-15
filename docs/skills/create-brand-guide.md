@@ -4,21 +4,32 @@
 
 ## Purpose
 
-Create a reusable Brand Guide for one uploaded PowerPoint master so slide-authoring agents understand the corporate-design logic behind the extracted colors, not only the raw theme values.
+Create or update the repo Markdown Brand Guide for one uploaded PowerPoint slide master so slide-authoring agents understand the corporate-design logic behind the extracted colors, not only the raw theme values.
 
-The guide is meant to be pasted back into SlideForge and stored on the uploaded template/master in browser state. A repo file export is optional and never the source of truth.
+The guide is a file in the workspace, not browser state. SlideForge only shows a reminder and can copy Template Context; it never stores or edits Brand Guides in the frontend.
 
-## When to invoke
+## Source Of Truth
 
-- The SettingsPanel says `Brand Guide Status: missing`.
+Store one file per slide master:
+
+```text
+.slidebuilder/brand-guides/<template_id>/<master_id>.md
+```
+
+Use the exact `template_id` and `master_id` from the Template Context. Create parent folders when missing. If the file already exists, update it in place instead of creating a duplicate.
+
+## When To Invoke
+
+- The SettingsPanel says the Brand Guide is repo-based and points to a missing master guide.
 - A user uploaded a new PPTX master and wants Copilot/Claude to create slides from it.
 - Brand Guardian or QA reports weak brand interpretation, unclear accent semantics, or inconsistent color use.
 
 ## Inputs
 
-- **Template Context** from SlideForge SettingsPanel, including:
+- **Template Context** copied from SlideForge SettingsPanel, including:
   - template id/name/file
   - master id/name
+  - expected Brand Guide path
   - `--slide-*` CSS vars
   - full `--ppt-*` palette
   - PowerPoint-style tint/shade variants
@@ -31,17 +42,14 @@ If the user provides extra CI notes, incorporate them. If not, derive the guide 
 ## Process
 
 1. Read the Template Context completely.
-2. Ask the one CI-notes question above if the answer is not already present.
-3. Interpret the palette:
+2. Resolve the target path from `expected_path`, or construct `.slidebuilder/brand-guides/<template_id>/<master_id>.md`.
+3. Ask the one CI-notes question above if the answer is not already present.
+4. Interpret the palette:
    - identify likely background, text, heading, primary brand, support surface, accent, warning/risk, success/trust, link, and muted roles
    - use contrast and typical PowerPoint theme semantics (`lt1`, `dk1`, `lt2`, `dk2`, `accent1..6`)
    - use the provided tint/shade variants for soft fills and deep fills
-4. Define safe pairings:
-   - foreground/background combinations
-   - title/body/accent usage
-   - tinted fill recipes
-   - combinations to avoid
-5. Produce Markdown only, ready to paste into SlideForge.
+5. Define safe pairings, title/body/accent usage, tinted fill recipes, and combinations to avoid.
+6. Write the Markdown Brand Guide to the target file.
 
 ## Color Role Model
 
@@ -61,9 +69,9 @@ style={{ color: "var(--slide-primary)" }}
 style={{ backgroundColor: "color-mix(in srgb, var(--ppt-accent2) 12%, var(--slide-bg))" }}
 ```
 
-## Output Format
+## File Format
 
-Return exactly one Markdown document:
+Write exactly one Markdown document:
 
 ```md
 # Brand Guide: <template/master name>
@@ -104,16 +112,16 @@ Return exactly one Markdown document:
 
 ## Quality Gates
 
+- [ ] The file path is `.slidebuilder/brand-guides/<template_id>/<master_id>.md`.
 - [ ] The guide uses only extracted PPTX/theme values and optional user CI notes.
 - [ ] No raw, newly invented brand colors.
 - [ ] Every semantic role has a token reference and rationale.
 - [ ] Safe pairings mention contrast/readability.
 - [ ] Recipes are practical for SlideForge templates and AGENTS.md Theme Contract.
-- [ ] Output is Markdown only, with no implementation diff.
+- [ ] No frontend storage, pasteback, or IndexedDB Brand Guide step is introduced.
 
 ## Do Not
 
-- Modify repo files as part of this skill.
-- Treat `.slidebuilder/brand-guides/*.md` as source of truth.
+- Generate a slide. This skill only creates/updates the Brand Guide file.
+- Store the guide in SlideForge browser state.
 - Ask repeated brand questions. Ask once, then derive.
-- Generate a slide. This skill only creates the Brand Guide.

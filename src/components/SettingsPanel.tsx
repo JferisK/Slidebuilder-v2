@@ -1,9 +1,7 @@
 import * as React from "react";
 import {
   Clipboard,
-  Download,
   FileText,
-  Save,
   Trash2,
   Upload,
   HelpCircle,
@@ -18,8 +16,6 @@ import {
   useActiveProject,
   useActiveSlide,
   useSlideStore,
-  type BrandGuideRecord,
-  type BrandGuideSource,
   type StoredTemplate,
 } from "@/store/slideStore";
 import { Select } from "./ui/select";
@@ -35,7 +31,7 @@ import {
   slideTemplates,
   getCodeSlide,
 } from "@/slides/registry";
-import type { Placeholder, SlideMaster, SlideSize } from "@/parser/pptxParser";
+import type { Placeholder, SlideMaster } from "@/parser/pptxParser";
 import {
   isContentElementId,
   parseContentElementId,
@@ -370,6 +366,14 @@ const PlaceholderList: React.FC<PlaceholderListProps> = ({
   );
 };
 
+type BrandGuideInstructionPlatform = "claude" | "copilot";
+
+const BRAND_GUIDE_PLATFORM_OPTIONS = [
+  { value: "claude", label: "Claude Code" },
+  { value: "copilot", label: "GitHub Copilot" },
+] satisfies Array<{ value: BrandGuideInstructionPlatform; label: string }>;
+
+
 /** Small color swatch */
 const Swatch: React.FC<{ color: string; label: string }> = ({
   color,
@@ -437,27 +441,6 @@ const PaletteFamily: React.FC<{
   </div>
 );
 
-const BRAND_GUIDE_SOURCE_OPTIONS = [
-  { value: "manual", label: "Manuell" },
-  { value: "copilot", label: "GitHub Copilot" },
-  { value: "claude", label: "Claude Code" },
-] satisfies Array<{ value: BrandGuideSource; label: string }>;
-
-function formatDateTime(value: number): string {
-  return new Date(value).toLocaleString("de-DE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
-
-function sanitizeDownloadName(value: string): string {
-  return value
-    .trim()
-    .replace(/[^a-z0-9._-]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
-
 function copyablePalette(master: SlideMaster): string {
   const lines: string[] = [];
   for (const family of master.theme.palette ?? []) {
@@ -471,90 +454,64 @@ function copyablePalette(master: SlideMaster): string {
   return lines.join("\n");
 }
 
-function buildTemplateContextMarkdown({
-  template,
+
+
+function buildBrandGuideInstructions({
+  platform,
+  brandGuidePath,
   master,
-  slideSize,
 }: {
-  template: StoredTemplate;
+  platform: BrandGuideInstructionPlatform;
+  brandGuidePath: string;
   master: SlideMaster;
-  slideSize?: SlideSize;
 }): string {
   const theme = master.theme.cssVars;
-  const cssVarLines = Object.entries(theme)
+  const coreVars = Object.entries(theme)
     .filter(([key]) => key.startsWith("--slide-"))
     .map(([key, value]) => `  ${key}: ${value}`)
     .join("\n");
-  const pptVarLines = Object.entries(theme)
-    .filter(([key]) => key.startsWith("--ppt-") && !/-heller-|-dunkler-/.test(key))
-    .map(([key, value]) => `  ${key}: ${value}`)
-    .join("\n");
-  const layoutLines = master.layouts
-    .map((layout) => {
-      const placeholders = layout.placeholders
-        .map(
-          (p) =>
-            `    - idx=${p.idx}, type=${p.type}, x=${p.position.x.toFixed(1)}%, y=${p.position.y.toFixed(1)}%, w=${p.position.w.toFixed(1)}%, h=${p.position.h.toFixed(1)}%`,
-        )
-        .join("\n");
-      return [`  - id: ${layout.id}`, `    name: ${layout.name}`, placeholders]
-        .filter(Boolean)
-        .join("\n");
-    })
+  const paletteLines = (master.theme.palette ?? [])
+    .filter((e) => !["hlink", "folHlink"].includes(e.key))
+    .map((e) => `  ${e.key} (${e.label}): ${e.color}`)
     .join("\n");
 
-  return [
-    "# Template Context",
-    `source: "SlideForge SettingsPanel"`,
-    `template_id: "${template.id}"`,
-    `template_name: "${template.name}"`,
-    `template_file: "${template.fileName}"`,
+  const masterHeader = [
     `master_id: "${master.id}"`,
     `master_name: "${master.name}"`,
-    slideSize
-      ? `slide_size_emu: { cx: ${slideSize.widthEmu}, cy: ${slideSize.heightEmu} }`
-      : `slide_size_emu: unknown`,
-    "",
-    "## Core Theme CSS Vars",
-    cssVarLines,
-    "",
-    "## PowerPoint Palette Vars",
-    pptVarLines || "  (none)",
-    "",
-    "## PowerPoint Palette With Variants",
-    copyablePalette(master) || "  (none)",
-    "",
-    "## Layout Inventory",
-    layoutLines || "  (none)",
-    "",
-    "## Brand Guide Status",
-    "missing_or_regenerate: true",
+    `expected_path: "${brandGuidePath}"`,
   ].join("\n");
-}
 
-function buildBrandGuideCommand(templateContext: string): string {
+  const masterData = [
+    "## Kern-CSS-Vars",
+    coreVars,
+    "",
+    "## PowerPoint-Palette",
+    paletteLines || "  (keine)",
+  ].join("\n");
+
+  if (platform === "claude") {
+    return [
+      "/create-brand-guide",
+      "",
+      "Ausführen im Repo-Root. Claude erstellt danach die Brand-Guide-Datei.",
+      "",
+      masterHeader,
+      "",
+      masterData,
+    ].join("\n");
+  }
+
   return [
-    "/create-brand-guide",
+    "create-brand-guide.prompt.md",
     "",
-    "Nutze den folgenden Template Context aus SlideForge.",
-    'Frage den User genau einmal: "Hast du zusaetzliche CI-/Brand-Vorgaben oder soll ich nur den PPTX-Master nutzen?"',
-    "Wenn keine zusaetzlichen Vorgaben kommen, leite den Brand Guide selbst aus Master, Palette, PowerPoint-Varianten, Fonts und Kontrast ab.",
-    "Gib am Ende nur Markdown aus, das ich in SlideForge als Brand Guide einfuegen kann.",
+    "1. Copilot Chat → Agent Mode öffnen",
+    "2. Prompt starten: .github/prompts/create-brand-guide.prompt.md",
+    "3. Folgenden Template Context einfügen wenn gefragt:",
     "",
-    templateContext,
+    masterHeader,
+    "",
+    masterData,
   ].join("\n");
-}
-
-function downloadMarkdown(fileName: string, markdown: string) {
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 export const SettingsPanel: React.FC = () => {
@@ -586,32 +543,13 @@ export const SettingsPanel: React.FC = () => {
   const togglePlaceholderHidden = useSlideStore(
     (s) => s.togglePlaceholderHidden,
   );
-  const setBrandGuideForMaster = useSlideStore(
-    (s) => s.setBrandGuideForMaster,
-  );
-
   const fileRef = React.useRef<HTMLInputElement>(null);
-  const [brandGuideDraft, setBrandGuideDraft] = React.useState("");
-  const [brandGuideSource, setBrandGuideSource] =
-    React.useState<BrandGuideSource>("manual");
+  const [brandGuideInstructionPlatform, setBrandGuideInstructionPlatform] =
+    React.useState<BrandGuideInstructionPlatform>("claude");
 
   const activeTemplate = activeTemplateId
     ? templates.find((t) => t.id === activeTemplateId)
     : undefined;
-  const activeBrandGuide =
-    activeTemplate && activeMaster
-      ? activeTemplate.brandGuides?.[activeMaster.id]
-      : undefined;
-
-  React.useEffect(() => {
-    setBrandGuideDraft(activeBrandGuide?.markdown ?? "");
-    setBrandGuideSource(activeBrandGuide?.source ?? "manual");
-  }, [
-    activeBrandGuide?.markdown,
-    activeBrandGuide?.source,
-    activeMaster?.id,
-    activeTemplateId,
-  ]);
 
   const handleUploadMore = () => fileRef.current?.click();
 
@@ -699,17 +637,17 @@ export const SettingsPanel: React.FC = () => {
   const linkPalette = palette.filter((entry) =>
     ["hlink", "folHlink"].includes(entry.key),
   );
-  const templateContext = activeTemplate
-    ? buildTemplateContextMarkdown({
-        template: activeTemplate,
-        master: activeMaster,
-        slideSize: presentation.slideSize,
-      })
-    : "";
-  const brandGuideCommand = templateContext
-    ? buildBrandGuideCommand(templateContext)
-    : "";
-
+  const brandGuidePath = activeTemplate
+    ? `.slidebuilder/brand-guides/${activeTemplate.id}/${activeMaster.id}.md`
+    : `.slidebuilder/brand-guides/${activeMaster.id}.md`;
+  const [brandGuideExists, setBrandGuideExists] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/${brandGuidePath}`, { method: "HEAD" })
+      .then((res) => { if (!cancelled) setBrandGuideExists(res.ok); })
+      .catch(() => { if (!cancelled) setBrandGuideExists(false); });
+    return () => { cancelled = true; };
+  }, [brandGuidePath]);
   const copyText = async (value: string, success: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -717,36 +655,6 @@ export const SettingsPanel: React.FC = () => {
     } catch {
       showToast("Clipboard nicht verfügbar", "error");
     }
-  };
-
-  const saveBrandGuide = () => {
-    if (!activeTemplateId || !activeTemplate) {
-      showToast("Keine gespeicherte PPTX-Vorlage aktiv", "error");
-      return;
-    }
-    const markdown = brandGuideDraft.trim();
-    if (!markdown) {
-      showToast("Brand Guide darf nicht leer sein", "error");
-      return;
-    }
-    const record: BrandGuideRecord = {
-      templateId: activeTemplateId,
-      masterId: activeMaster.id,
-      markdown,
-      generatedAt: Date.now(),
-      source: brandGuideSource,
-      inputSummary: "Saved from SettingsPanel paste/edit",
-    };
-    setBrandGuideForMaster(activeTemplateId, activeMaster.id, record);
-    showToast("Brand Guide gespeichert");
-  };
-
-  const resetBrandGuide = () => {
-    if (!activeTemplateId) return;
-    setBrandGuideForMaster(activeTemplateId, activeMaster.id, null);
-    setBrandGuideDraft("");
-    setBrandGuideSource("manual");
-    showToast("Brand Guide entfernt");
   };
 
   return (
@@ -906,146 +814,54 @@ export const SettingsPanel: React.FC = () => {
 
         <Separator />
 
-        <CollapsibleSection
-          label="Brand Guide"
-          defaultOpen={!activeBrandGuide}
-        >
+        <CollapsibleSection label="Brand Guide" defaultOpen={true}>
           <div className="flex flex-col gap-2">
-            <div
-              className="rounded-md border p-2 text-[10px] leading-snug"
-              style={{
-                borderColor: activeBrandGuide
-                  ? "color-mix(in srgb, var(--app-accent) 45%, transparent)"
-                  : "rgba(245, 158, 11, 0.45)",
-                background: activeBrandGuide
-                  ? "rgba(59,130,246,0.06)"
-                  : "rgba(245,158,11,0.08)",
-                color: "var(--app-muted)",
-              }}
-            >
-              <div className="mb-1 flex items-center gap-1.5 font-medium text-[var(--app-text)]">
-                <FileText size={12} />
-                {activeBrandGuide
-                  ? "Brand Guide aktiv"
-                  : "Brand Guide fehlt"}
-              </div>
-              {activeBrandGuide ? (
-                <div>
-                  Quelle: {activeBrandGuide.source} · gespeichert{" "}
-                  {formatDateTime(activeBrandGuide.generatedAt)}
+            {brandGuideExists ? (
+              <div className="flex flex-col gap-1.5 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--app-text)]">
+                  <FileText size={11} />
+                  Guide aktiv für „{activeMaster.name}"
                 </div>
-              ) : (
-                <div>
-                  Ohne Brand Guide kennt die KI zwar die Master-Farben, aber
-                  nicht deren CD-Logik. Erzeuge einmal einen Guide, damit
-                  Copilot/Claude Farben konsistenter einsetzen.
+                <div className="text-[9px] leading-snug text-[var(--app-muted)]">
+                  Die KI kennt Farben, Fonts und Brand-Regeln dieses Masters.
                 </div>
-              )}
-            </div>
-
-            {activeTemplate ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    copyText(templateContext, "Template-Kontext kopiert")
-                  }
-                >
-                  <Clipboard size={12} />
-                  Kontext
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    copyText(brandGuideCommand, "Brandguide-Command kopiert")
-                  }
-                >
-                  <Clipboard size={12} />
-                  Command
-                </Button>
-                {activeBrandGuide && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        copyText(activeBrandGuide.markdown, "Brand Guide kopiert")
-                      }
-                    >
-                      <Clipboard size={12} />
-                      Kopieren
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        downloadMarkdown(
-                          `${sanitizeDownloadName(activeTemplate.name)}-${sanitizeDownloadName(activeMaster.name)}-brand-guide.md`,
-                          activeBrandGuide.markdown,
-                        )
-                      }
-                    >
-                      <Download size={12} />
-                      Export
-                    </Button>
-                  </>
-                )}
+                <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1 font-mono text-[8px] leading-snug text-[var(--app-muted)]">
+                  {brandGuidePath}
+                </div>
               </div>
             ) : (
-              <div className="text-[10px] text-[var(--app-muted)]">
-                Brand Guides koennen nur fuer gespeicherte PPTX-Vorlagen
-                hinterlegt werden.
-              </div>
-            )}
-
-            {activeBrandGuide && (
-              <div className="max-h-24 overflow-hidden rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2 font-mono text-[9px] leading-snug text-[var(--app-muted)]">
-                {activeBrandGuide.markdown.slice(0, 520)}
-                {activeBrandGuide.markdown.length > 520 ? "..." : ""}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <Select
-                    value={brandGuideSource}
-                    options={BRAND_GUIDE_SOURCE_OPTIONS}
-                    onValueChange={(value) =>
-                      setBrandGuideSource(value as BrandGuideSource)
-                    }
-                  />
+              <div className="flex flex-col gap-2 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+                <Select
+                  value={brandGuideInstructionPlatform}
+                  options={BRAND_GUIDE_PLATFORM_OPTIONS}
+                  onValueChange={(value) =>
+                    setBrandGuideInstructionPlatform(
+                      value as BrandGuideInstructionPlatform,
+                    )
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    copyText(
+                      buildBrandGuideInstructions({
+                        platform: brandGuideInstructionPlatform,
+                        brandGuidePath,
+                        master: activeMaster,
+                      }),
+                      "Anweisungen kopiert",
+                    )
+                  }
+                >
+                  <Clipboard size={12} />
+                  Anweisungen kopieren
+                </Button>
+                <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1.5 font-mono text-[9px] leading-snug text-[var(--app-muted)]">
+                  {brandGuidePath}
                 </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={saveBrandGuide}
-                  disabled={!activeTemplate}
-                >
-                  <Save size={12} />
-                  Speichern
-                </Button>
               </div>
-              <Textarea
-                rows={8}
-                value={brandGuideDraft}
-                onChange={(e) => setBrandGuideDraft(e.target.value)}
-                placeholder="Hier den von /create-brand-guide erzeugten Markdown-Brandguide einfuegen..."
-              />
-              {activeBrandGuide && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={resetBrandGuide}
-                  className="w-full"
-                >
-                  <Trash2 size={12} />
-                  Brand Guide entfernen
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </CollapsibleSection>
 

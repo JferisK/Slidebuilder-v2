@@ -42,7 +42,6 @@ export const UploadScreen: React.FC = () => {
         pptxData: arrayBuffer,
         parsed,
         layoutSlotOverrides: {},
-        brandGuides: {},
       };
 
       await addTemplate(tpl);
