@@ -664,48 +664,49 @@ export const SettingsPanel: React.FC = () => {
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
         <ContentEditPanel />
-        <SettingsGroup title="PPTX-Struktur">
-          {templates.length > 0 && (
-            <div>
-              <SectionLabel>Vorlage (PPTX)</SectionLabel>
-              <div className="flex items-center gap-1">
-                <div className="flex-1">
-                  <Select
-                    value={activeTemplateId ?? ""}
-                    options={templateOptions}
-                    onValueChange={(v) => setActiveTemplate(v)}
-                  />
-                </div>
+        <SettingsGroup title="PowerPoint-Vorlage (Kunde)">
+          <div>
+            <SectionLabel>PowerPoint-Datei</SectionLabel>
+            <div className="flex items-center gap-1">
+              <div className="flex-1">
+                <Select
+                  value={activeTemplateId ?? ""}
+                  options={templateOptions}
+                  onValueChange={(v) => setActiveTemplate(v)}
+                />
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleUploadMore}
+                title="Weitere PowerPoint-Datei (Kunden-Vorlage) hochladen"
+              >
+                <Upload size={13} />
+              </Button>
+              {activeTemplateId && templates.length > 1 && (
                 <Button
                   size="icon"
-                  variant="ghost"
-                  onClick={handleUploadMore}
-                  title="Weitere Vorlage hochladen"
+                  variant="destructive"
+                  onClick={() => {
+                    if (activeTemplateId) deleteTemplate(activeTemplateId);
+                  }}
+                  title="Aktive Vorlage entfernen"
                 >
-                  <Upload size={13} />
+                  <Trash2 size={13} />
                 </Button>
-                {activeTemplateId && templates.length > 1 && (
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    onClick={() => {
-                      if (activeTemplateId) deleteTemplate(activeTemplateId);
-                    }}
-                    title="Vorlage entfernen"
-                  >
-                    <Trash2 size={13} />
-                  </Button>
-                )}
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pptx"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+              )}
             </div>
-          )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pptx"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+              {templates.length} Vorlage{templates.length === 1 ? "" : "n"} verfügbar · Master/Farben passen sich automatisch an
+            </div>
+          </div>
 
           <div>
             <SectionLabel>Folienmaster</SectionLabel>
