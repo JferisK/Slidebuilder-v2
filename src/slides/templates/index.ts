@@ -23,3 +23,4 @@ export { ScenarioComparison } from "./22-ScenarioComparison";
 export { HeatmapGap } from "./23-HeatmapGap";
 export { PyramidHierarchy } from "./24-PyramidHierarchy";
 export { AppendixSourceGrid } from "./25-AppendixSourceGrid";
+export { DoraIamPamHandout } from "./26-DoraIamPamHandout";

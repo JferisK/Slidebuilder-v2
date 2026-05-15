@@ -209,6 +209,7 @@ export const slideTemplates: RegisteredCodeSlide[] = [
   T.HeatmapGap,
   T.PyramidHierarchy,
   T.AppendixSourceGrid,
+  T.DoraIamPamHandout,
 ].map((slide) => ({
   ...slide,
   sourceFolder: "templates",
