@@ -3,9 +3,7 @@ import {
   Upload,
   MousePointerClick,
   MessageSquare,
-  Code2,
   FolderTree,
-  Download,
   ArrowRight,
   ArrowLeft,
 } from "lucide-react";
@@ -23,37 +21,31 @@ const STEPS: Step[] = [
     icon: <Upload size={32} />,
     title: "1. PPTX-Vorlage hochladen",
     description:
-      "Lade deine PowerPoint-Vorlage (.pptx) hoch. SlideForge extrahiert automatisch alle Folienmaster, Layouts, Farben und Schriften. Die Vorlage wird lokal gespeichert — du musst sie nur einmal hochladen.",
+      "Lade deine PowerPoint-Vorlage (.pptx) hoch. SlideForge liest Master, Layouts, Placeholder, Farben und Schriften lokal im Browser aus.",
   },
   {
     icon: <MousePointerClick size={32} />,
-    title: "2. Layout wählen & Inhalte bearbeiten",
+    title: "2. Master und Layout wählen",
     description:
-      "Wähle einen Folienmaster und ein Layout im rechten Panel. Jeder Placeholder wird mit gestrichelter Linie angezeigt — klick darauf, um ihn auszuwählen. Bearbeite Titel, Untertitel und Inhalte live in der Vorschau.",
-  },
-  {
-    icon: <MessageSquare size={32} />,
-    title: "3. Feedback als Copilot-Prompt",
-    description:
-      "Klick auf einen Placeholder oder markiere einen Bereich per Drag. Schreib deinen Kommentar — z.B. \"Titel größer\" oder \"Bullet-Liste zweispaltig\". Der Prompt wird mit allen Kontext-Infos (Master, Layout, Position, Element) in die Zwischenablage kopiert.",
-  },
-  {
-    icon: <Code2 size={32} />,
-    title: "4. In GitHub Copilot einfügen",
-    description:
-      "Öffne den Copilot Chat in VS Code (Strg+Shift+I) und füge den Prompt ein (Strg+V). Copilot kennt die Datei DynamicSlide.tsx und schlägt konkrete Codeänderungen vor. Übernimm die Änderungen und sieh das Ergebnis sofort in der Vorschau.",
+      "Wähle im rechten Panel unter PPTX-Struktur die passende Vorlage, den Folienmaster und das Layout für die aktive Folie.",
   },
   {
     icon: <FolderTree size={32} />,
-    title: "5. Slides als React-Dateien speichern",
+    title: "3. Projekt oder Repo-Folie wählen",
     description:
-      "Jede fertige Slide kann als eigenständige React-Komponente exportiert werden. Organisiere deine Slides in Projekten und Ordnern — die Struktur wird als Repo-Ordnerpfad vorgeschlagen. So wächst dein Fundus an wiederverwendbaren Slide-Komponenten.",
+      "Wähle unter Projekt & Folien einen Projekt- oder Repo-Ordner und lade eine vorhandene Slide oder eine zentrale Vorlage.",
   },
   {
-    icon: <Download size={32} />,
-    title: "6. PNG Export & Präsentation",
+    icon: <MousePointerClick size={32} />,
+    title: "4. Bereiche und Inhalte prüfen",
     description:
-      "Exportiere jede Slide als hochauflösendes PNG (2560×1440). Nutze die gespeicherten React-Komponenten um zwischen verschiedenen Themen und Präsentationen zu wechseln.",
+      "Ordne CodeSlide-Slots den PowerPoint-Bereichen zu, blende unnötige Placeholder aus und markiere Inhalte oder Elemente gezielt auf der Folie.",
+  },
+  {
+    icon: <MessageSquare size={32} />,
+    title: "5. Prompt nutzen und exportieren",
+    description:
+      "Kopiere Feedback als Kontext-Prompt für Claude, Copilot oder Codex. Nach der Umsetzung exportierst du die sichtbare Folie als PNG.",
   },
 ];
 
@@ -81,7 +73,7 @@ export const OnboardingScreen: React.FC = () => {
             }}
           />
           <span className="text-sm font-semibold tracking-tight">
-            SlideForge — Quickstart
+            SlideForge — So nutzt du die App
           </span>
           <span className="ml-auto text-[10px] text-[var(--app-muted)]">
             {step + 1} / {STEPS.length}

@@ -2,6 +2,7 @@ node_modules
 dist
 dist-ssr
 .vite
+.codex-capture/
 *.local
 .DS_Store
 *.log
@@ -9,3 +10,6 @@ dist-ssr
 .env.local
 .env.*.local
 .eslintcache
+Thumbs.db
+*.tmp
+*.temp

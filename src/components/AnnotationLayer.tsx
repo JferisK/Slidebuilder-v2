@@ -1,20 +1,45 @@
 import * as React from "react";
-import { Crosshair, MousePointerSquareDashed, X } from "lucide-react";
-import type { Placeholder, SlideLayout } from "@/parser/pptxParser";
-import { useSlideStore, type AreaRect } from "@/store/slideStore";
+import { X } from "lucide-react";
+import type {
+  Placeholder,
+  SlideLayout,
+  SlideSize,
+} from "@/parser/pptxParser";
+import {
+  useSlideStore,
+  type AreaRect,
+  type ContentElementIndex,
+} from "@/store/slideStore";
+import type { ContentElementMeta } from "@/hooks/useElementInstrumentation";
+import {
+  formatElementLabel,
+  makeElementId,
+  parseElementId,
+} from "@/lib/elementId";
+import {
+  describeContentElement,
+  isContentElementId,
+  parseContentElementId,
+} from "@/lib/contentElementId";
+import {
+  formatSlideAspect,
+  getRenderSlideSize,
+} from "@/lib/slideSize";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tooltip } from "./ui/tooltip";
-
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
+const DRAG_THRESHOLD_NORM = 0.01;
 
 interface AnnotationLayerProps {
   scale: number;
   layout: SlideLayout;
+  slideSize?: SlideSize;
   activeMasterName: string;
+  slideId: string;
+  slideOrdinal: number;
   slideContent: Record<string, string>;
   themeColors: Record<string, string>;
+  brandGuidePath?: string;
 }
 
 interface DraftPin {
@@ -27,6 +52,29 @@ interface DraftArea {
   y1: number;
   x2: number;
   y2: number;
+  /** Whether the drag started with a Shift modifier (for additive select). */
+  additive?: boolean;
+}
+
+/** Placeholder whose bounding box contains a given point (all in %) */
+function findPlaceholderAtPoint(
+  layout: SlideLayout,
+  xPercent: number,
+  yPercent: number,
+): Placeholder | null {
+  for (let i = layout.placeholders.length - 1; i >= 0; i--) {
+    const p = layout.placeholders[i];
+    const { x, y, w, h } = p.position;
+    if (
+      xPercent >= x &&
+      xPercent <= x + w &&
+      yPercent >= y &&
+      yPercent <= y + h
+    ) {
+      return p;
+    }
+  }
+  return null;
 }
 
 function findNearestPlaceholder(
@@ -51,6 +99,47 @@ function findNearestPlaceholder(
   return best;
 }
 
+/** Content-element ids whose rects overlap the given area (x/y/w/h in 0-1). */
+function findOverlappingContentElementIds(
+  index: ContentElementIndex | undefined,
+  area: { x1: number; y1: number; x2: number; y2: number },
+): string[] {
+  if (!index) return [];
+  const ax1 = Math.min(area.x1, area.x2);
+  const ay1 = Math.min(area.y1, area.y2);
+  const ax2 = Math.max(area.x1, area.x2);
+  const ay2 = Math.max(area.y1, area.y2);
+  const out: string[] = [];
+  for (const id of Object.keys(index)) {
+    const r = index[id].rect;
+    const ex1 = r.x;
+    const ey1 = r.y;
+    const ex2 = r.x + r.w;
+    const ey2 = r.y + r.h;
+    if (ex1 < ax2 && ex2 > ax1 && ey1 < ay2 && ey2 > ay1) out.push(id);
+  }
+  return out;
+}
+
+/** Use document.elementsFromPoint to find a content-element under the cursor,
+ * bypassing the annotation overlay that sits on top of the slide. */
+function findContentElementIdAtPoint(
+  clientX: number,
+  clientY: number,
+  overlay: Element | null,
+): string | null {
+  const els = document.elementsFromPoint(clientX, clientY);
+  for (const el of els) {
+    if (overlay && overlay.contains(el)) continue;
+    const match = (el as Element).closest("[data-content-id]");
+    if (match instanceof HTMLElement) {
+      const id = match.getAttribute("data-content-id");
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
 /** Placeholders whose bounding box overlaps a given area rect (all in %) */
 function findOverlappingPlaceholders(
   layout: SlideLayout,
@@ -69,11 +158,19 @@ function findOverlappingPlaceholders(
   });
 }
 
-function describePlaceholder(p: Placeholder, content: Record<string, string>): string {
+function describePlaceholder(
+  p: Placeholder,
+  content: Record<string, string>,
+  slideId: string,
+  slideOrdinal: number,
+): string {
   const currentValue = content[String(p.idx)] || "(leer)";
   const pos = p.position;
+  const id = makeElementId(slideId, p.idx);
+  const label = formatElementLabel(slideOrdinal, p.type, p.idx);
   return [
-    `  - type="${p.type}", idx=${p.idx}`,
+    `  - id="${id}", label="${label}"`,
+    `    type="${p.type}", idx=${p.idx}`,
     `    Position: left=${pos.x.toFixed(1)}%, top=${pos.y.toFixed(1)}%, Breite=${pos.w.toFixed(1)}%, Höhe=${pos.h.toFixed(1)}%`,
     `    Aktueller Inhalt: "${currentValue.length > 80 ? currentValue.slice(0, 80) + "…" : currentValue}"`,
   ].join("\n");
@@ -87,11 +184,14 @@ function buildCopilotPrompt({
   relY,
   nearest,
   comment,
-  area,
-  overlapping,
-  selectedPlaceholder,
   content,
   themeColors,
+  slideId,
+  slideOrdinal,
+  slideSize,
+  codeSlideId,
+  selectedContentElements,
+  brandGuidePath,
 }: {
   masterName: string;
   layoutName: string;
@@ -100,87 +200,142 @@ function buildCopilotPrompt({
   relY: number;
   nearest: Placeholder | null;
   comment: string;
-  area?: AreaRect;
-  overlapping?: Placeholder[];
-  selectedPlaceholder?: { idx: number; type: string } | null;
   content: Record<string, string>;
   themeColors: Record<string, string>;
+  slideId: string;
+  slideOrdinal: number;
+  slideSize?: SlideSize;
+  codeSlideId?: string;
+  selectedContentElements: ContentElementMeta[];
+  brandGuidePath?: string;
 }): string {
+  const renderSize = getRenderSlideSize(slideSize);
   const lines: string[] = [
     "Ich arbeite an der Datei src/components/DynamicSlide.tsx in einem React-Projekt (SlideForge).",
+    "",
+    "📖 **Lies zuerst `AGENTS.md` im Repo-Root** (Projekt-Konventionen, Theme-Kontrakt §3, CodeSlide-System, 4-Rollen-Team-Prozess). `CLAUDE.md` / `.github/copilot-instructions.md` sind Plattform-Zeiger darauf.",
+    "",
+    "## Eindeutige Element-IDs",
+    "Jedes Element hat eine eindeutige `id` im Format `<slideId>::<idx>` und ein menschenlesbares",
+    "`label` im Format `S<slideOrdinal>·<type>#<idx>`. Bitte bei Änderungen immer per `id` referenzieren,",
+    "nicht nur per `idx` (idx ist nur innerhalb des Layouts eindeutig).",
     "",
     "## Slide-Kontext",
     `Folienmaster: "${masterName}"`,
     `Layout: "${layoutName}"`,
-    `Slide-Größe: 1280×720px (16:9)`,
+    `Slide-Id: "${slideId}"`,
+    `Slide-Ordinal: ${slideOrdinal}`,
+    `Slide-Größe: ${renderSize.width}×${renderSize.height}px (${formatSlideAspect(slideSize)})`,
     "",
     "## Theme-Farben",
-    `  Hintergrund:  ${themeColors["--slide-bg"] ?? "?"}`,
-    `  Primär:       ${themeColors["--slide-primary"] ?? "?"}`,
-    `  Sekundär:     ${themeColors["--slide-secondary"] ?? "?"}`,
-    `  Akzent:       ${themeColors["--slide-accent"] ?? "?"}`,
-    `  Text:         ${themeColors["--slide-text"] ?? "?"}`,
+    `  Hintergrund:   ${themeColors["--slide-bg"] ?? "?"}`,
+    `  Primär:        ${themeColors["--slide-primary"] ?? "?"}`,
+    `  Sekundär:      ${themeColors["--slide-secondary"] ?? "?"}`,
+    `  Akzent:        ${themeColors["--slide-accent"] ?? "?"}`,
+    `  Text:          ${themeColors["--slide-text"] ?? "?"}`,
     `  Text gedämpft: ${themeColors["--slide-text-muted"] ?? "?"}`,
-    `  Font Heading: ${themeColors["--slide-font-heading"] ?? "?"}`,
-    `  Font Body:    ${themeColors["--slide-font-body"] ?? "?"}`,
+    `  Font Heading:  ${themeColors["--slide-font-heading"] ?? "?"}`,
+    `  Font Body:     ${themeColors["--slide-font-body"] ?? "?"}`,
     "",
-    "## Alle Placeholders in diesem Layout",
+    "## Brand Guide",
+    `Repo-Pfad: ${brandGuidePath ?? ".slidebuilder/brand-guides/<template-id>/<master-id>.md"}`,
+    "Brand Guides werden nicht im Frontend gespeichert. Wenn die Datei existiert, lies sie aus dem Repo und nutze sie als CD-Logik. Wenn sie fehlt, markiere `brand_guide_status: \"missing\"` und empfehle `/create-brand-guide`.",
+    "",
+    "## Theme-Kontrakt (Pflicht, aus AGENTS.md §3)",
+    "Farben AUSSCHLIESSLICH via `var(--slide-*)` in Inline-Styles setzen — keine Tailwind-Farb-Klassen (kein `bg-amber-*`, `text-blue-*`, `border-red-*`).",
+    "Tints: `color-mix(in srgb, var(--slide-accent) 20%, transparent)`.",
+    "Größen: responsive `%` / Tailwind-Layout-Klassen, keine fixen Pixel.",
+    "Kanonisches Beispiel: `src/slides/templates/24-PyramidHierarchy.tsx`.",
+    "",
+    "## Fit-Kontrakt (Pflicht, aus AGENTS.md §4)",
+    "Die Slide muss in die reale PPTX-Placeholder-Geometrie passen, nicht nur in eine freie Preview.",
+    "Dense-Handout-Modus: sichtbar mehr Inhalt ist erlaubt, aber nur wenn die Folie ohne Clipping in den gemappten Body-Placeholder passt.",
+    "Keine zweite große Titelbühne im Body, wenn der Body dadurch vertikal überläuft.",
+    "Screenshot-/Render-Review ist Teil der Freigabe, wenn ein echter Render verfügbar ist.",
+    "",
   ];
+  if (codeSlideId) {
+    lines.push(`## Aktives CodeSlide-Template`);
+    lines.push(`codeSlideId: "${codeSlideId}"`);
+    lines.push(
+      "→ Datei suchen unter `src/slides/templates/` (Dateiname enthält diese id kebab-case).",
+    );
+    lines.push(
+      "→ Muss den Theme-Kontrakt oben einhalten. Falls aktuell hardcoded Tailwind-Farben: refactor auf `var(--slide-*)` wie in Slide 24.",
+    );
+    lines.push("");
+  }
+  if (selectedContentElements.length > 0) {
+    lines.push("## Content-Element-Auswahl");
+    lines.push(
+      "Der User hat auf dem Canvas die folgenden Inhalts-Elemente markiert.",
+    );
+    lines.push(
+      "Jede id hat das Format `<slideId>::p<placeholderIdx>::<domPath>`.",
+    );
+    lines.push(
+      "Bitte Änderungen ausschließlich an diesen Elementen vornehmen und per id referenzieren.",
+    );
+    lines.push("");
+    selectedContentElements.forEach((entry, index) => {
+      const parentPlaceholderId = `${slideId}::${entry.placeholderIdx}`;
+      const parentPlaceholder = layoutPlaceholders.find(
+        (p) => p.idx === entry.placeholderIdx,
+      );
+      const parentLabel = parentPlaceholder
+        ? formatElementLabel(slideOrdinal, parentPlaceholder.type, parentPlaceholder.idx)
+        : `S${slideOrdinal}·?#${entry.placeholderIdx}`;
+      lines.push(`  ${index + 1}. id="${entry.id}"`);
+      lines.push(`     type=${entry.type}  ${describeContentElement(entry.type, entry.textContent)}`);
+      lines.push(`     text="${entry.textContent}"`);
+      lines.push(
+        `     Position (norm): x=${entry.rect.x.toFixed(3)}, y=${entry.rect.y.toFixed(3)}, w=${entry.rect.w.toFixed(3)}, h=${entry.rect.h.toFixed(3)}`,
+      );
+      lines.push(
+        `     Eltern-Platzhalter: id="${parentPlaceholderId}", label="${parentLabel}"`,
+      );
+      lines.push("");
+    });
+  }
+  lines.push("## Alle Placeholders in diesem Layout");
 
   for (const p of layoutPlaceholders) {
-    lines.push(describePlaceholder(p, content));
+    lines.push(describePlaceholder(p, content, slideId, slideOrdinal));
   }
 
   lines.push("");
-
-  // Specific target info
-  if (selectedPlaceholder) {
-    const sp = layoutPlaceholders.find(
-      (p) => p.idx === selectedPlaceholder.idx,
-    );
-    lines.push("## Ziel-Element (vom User ausgewählt)");
-    if (sp) {
-      lines.push(describePlaceholder(sp, content));
-    } else {
-      lines.push(
-        `  type="${selectedPlaceholder.type}", idx=${selectedPlaceholder.idx}`,
-      );
-    }
-    lines.push("");
+  lines.push("## Aktiver Layout-Budget-Hinweis");
+  lines.push(
+    "Bitte speziell auf den gemappten Body-Placeholder achten: Inhalt muss in dessen reale Höhe passen.",
+  );
+  lines.push(
+    "Wenn die Folie als dichte Workshop-/Handout-Folie gelesen wird, Inhalt verdichten statt global herunterskalieren.",
+  );
+  lines.push("");
+  lines.push("## Angeklickte Position");
+  lines.push(`  x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`);
+  if (nearest) {
+    lines.push("  Nächstliegendes Element:");
+    lines.push(describePlaceholder(nearest, content, slideId, slideOrdinal));
   }
-
-  if (area) {
-    const x1 = Math.round(Math.min(area.x1, area.x2) * 100);
-    const y1 = Math.round(Math.min(area.y1, area.y2) * 100);
-    const x2 = Math.round(Math.max(area.x1, area.x2) * 100);
-    const y2 = Math.round(Math.max(area.y1, area.y2) * 100);
-    lines.push("## Markierter Bereich");
-    lines.push(`  Von (${x1}%, ${y1}%) bis (${x2}%, ${y2}%)`);
-    if (overlapping && overlapping.length > 0) {
-      lines.push("  Enthaltene Placeholders:");
-      for (const p of overlapping) {
-        lines.push(describePlaceholder(p, content));
-      }
-    }
-    lines.push("");
-  } else if (!selectedPlaceholder) {
-    lines.push("## Angeklickte Position");
-    lines.push(
-      `  x=${Math.round(relX * 100)}%, y=${Math.round(relY * 100)}%`,
-    );
-    if (nearest) {
-      lines.push("  Nächstliegender Placeholder:");
-      lines.push(describePlaceholder(nearest, content));
-    }
-    lines.push("");
-  }
+  lines.push("");
 
   lines.push("## Feedback");
   lines.push(`"${comment}"`);
   lines.push("");
+  if (selectedContentElements.length > 0) {
+    lines.push("## Änderungsregel für markierte Content-Elemente");
+    lines.push(
+      "Wenn ein markierter Block als generische Zusammenfassung / Intro-Zusammenfassung kritisiert wird, darf er NICHT durch eine neue paraphrasierende Zusammenfassung ersetzt werden.",
+    );
+    lines.push(
+      "Stattdessen: den markierten Block entfernen, substanziell fachlich vertiefen oder durch eine andere konkrete Struktur mit neuem Informationswert ersetzen.",
+    );
+    lines.push("");
+  }
   lines.push(
     "Bitte schlage eine konkrete Änderung an der DynamicSlide-Komponente vor.",
-    "Referenziere Placeholders per type und idx.",
+    "Referenziere Elemente ausschließlich per `id`.",
     "Zeige den geänderten Code-Abschnitt.",
   );
   return lines.join("\n").trim();
@@ -189,27 +344,44 @@ function buildCopilotPrompt({
 export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   scale,
   layout,
+  slideSize,
   activeMasterName,
+  slideId,
+  slideOrdinal,
   slideContent,
   themeColors,
+  brandGuidePath,
 }) => {
   const visible = useSlideStore((s) => s.annotationsVisible);
   const annotations = useSlideStore((s) => s.annotations);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
+  const codeSlideId = useSlideStore(
+    (s) => s.slides[s.activeSlideIndex]?.codeSlideId,
+  );
   const addAnnotation = useSlideStore((s) => s.addAnnotation);
   const removeAnnotation = useSlideStore((s) => s.removeAnnotation);
   const showToast = useSlideStore((s) => s.showToast);
-  const selectionMode = useSlideStore((s) => s.selectionMode);
-  const setSelectionMode = useSlideStore((s) => s.setSelectionMode);
-  const selectedPlaceholderIdx = useSlideStore(
-    (s) => s.selectedPlaceholderIdx,
+  const selectedElementIds = useSlideStore((s) => s.selectedElementIds);
+  const setSelectedElements = useSlideStore((s) => s.setSelectedElements);
+  const addElementsToSelection = useSlideStore(
+    (s) => s.addElementsToSelection,
   );
+  const clearElementSelection = useSlideStore((s) => s.clearElementSelection);
+  const contentIndex = useSlideStore(
+    (s) => s.contentElementIndex[slideId],
+  );
+
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
 
   const [draftPin, setDraftPin] = React.useState<DraftPin | null>(null);
   const [draftArea, setDraftArea] = React.useState<DraftArea | null>(null);
   const [drawingArea, setDrawingArea] = React.useState(false);
   const [draftComment, setDraftComment] = React.useState("");
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  const renderSize = React.useMemo(
+    () => getRenderSlideSize(slideSize),
+    [slideSize],
+  );
 
   const slidePins = annotations.filter(
     (a) => a.slideIndex === activeSlideIndex,
@@ -220,18 +392,22 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     return {
-      xNorm: Math.max(0, Math.min(1, x / SLIDE_W)),
-      yNorm: Math.max(0, Math.min(1, y / SLIDE_H)),
+      xNorm: Math.max(0, Math.min(1, x / renderSize.width)),
+      yNorm: Math.max(0, Math.min(1, y / renderSize.height)),
     };
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
-    if (selectionMode === "area") {
-      const { xNorm, yNorm } = toSlideCoords(e);
-      setDrawingArea(true);
-      setDraftArea({ x1: xNorm, y1: yNorm, x2: xNorm, y2: yNorm });
-    }
+    const { xNorm, yNorm } = toSlideCoords(e);
+    setDrawingArea(true);
+    setDraftArea({
+      x1: xNorm,
+      y1: yNorm,
+      x2: xNorm,
+      y2: yNorm,
+      additive: e.shiftKey,
+    });
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -240,33 +416,118 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     setDraftArea((prev) => (prev ? { ...prev, x2: xNorm, y2: yNorm } : prev));
   };
 
-  const handleMouseUp = () => {
-    if (drawingArea && draftArea) {
-      const dx = Math.abs(draftArea.x2 - draftArea.x1);
-      const dy = Math.abs(draftArea.y2 - draftArea.y1);
-      if (dx > 0.01 && dy > 0.01) {
-        // Valid area, show comment popover
-        setDrawingArea(false);
-        setDraftComment("");
-      } else {
-        // Too small → treat as click and cancel
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!drawingArea || !draftArea) return;
+    const dx = Math.abs(draftArea.x2 - draftArea.x1);
+    const dy = Math.abs(draftArea.y2 - draftArea.y1);
+    const additive = draftArea.additive;
+    setDrawingArea(false);
+
+    if (dx < DRAG_THRESHOLD_NORM && dy < DRAG_THRESHOLD_NORM) {
+      // Click (not drag): hit-test content element first, then placeholder,
+      // else fall back to pin placement for empty-space clicks.
+      const contentId = findContentElementIdAtPoint(
+        e.clientX,
+        e.clientY,
+        overlayRef.current,
+      );
+      if (contentId) {
+        if (additive) {
+          if (selectedElementIds.includes(contentId)) {
+            setSelectedElements(
+              selectedElementIds.filter((x) => x !== contentId),
+            );
+          } else {
+            addElementsToSelection([contentId]);
+          }
+        } else {
+          const onlyThis =
+            selectedElementIds.length === 1 &&
+            selectedElementIds[0] === contentId;
+          setSelectedElements(onlyThis ? [] : [contentId]);
+        }
         setDraftArea(null);
-        setDrawingArea(false);
+        return;
       }
+      const { xNorm, yNorm } = { xNorm: draftArea.x1, yNorm: draftArea.y1 };
+      const hit = findPlaceholderAtPoint(layout, xNorm * 100, yNorm * 100);
+      if (hit) {
+        const id = makeElementId(slideId, hit.idx);
+        if (additive) {
+          if (selectedElementIds.includes(id)) {
+            setSelectedElements(selectedElementIds.filter((x) => x !== id));
+          } else {
+            addElementsToSelection([id]);
+          }
+        } else {
+          const onlyThis =
+            selectedElementIds.length === 1 && selectedElementIds[0] === id;
+          setSelectedElements(onlyThis ? [] : [id]);
+        }
+        setDraftArea(null);
+        return;
+      }
+      // Empty-space click: pin fallback
+      if (!additive) clearElementSelection();
+      setDraftPin({ x: xNorm, y: yNorm });
+      setDraftComment("");
+      setDraftArea(null);
+      return;
     }
+
+    // Drag → marquee over both placeholders and content elements.
+    const contentIds = findOverlappingContentElementIds(contentIndex, {
+      x1: draftArea.x1,
+      y1: draftArea.y1,
+      x2: draftArea.x2,
+      y2: draftArea.y2,
+    });
+    const placeholderIds = findOverlappingPlaceholders(layout, {
+      x1: draftArea.x1 * 100,
+      y1: draftArea.y1 * 100,
+      x2: draftArea.x2 * 100,
+      y2: draftArea.y2 * 100,
+    }).map((p) => makeElementId(slideId, p.idx));
+    // Prefer content-level IDs when available; include placeholders only for
+    // placeholders that have no content children in the overlap set.
+    const coveredPlaceholders = new Set(
+      contentIds
+        .map((id) => parseContentElementId(id)?.placeholderIdx)
+        .filter((v): v is number => typeof v === "number"),
+    );
+    const filteredPlaceholderIds = placeholderIds.filter((id) => {
+      const parsed = parseElementId(id);
+      return parsed ? !coveredPlaceholders.has(parsed.idx) : true;
+    });
+    const ids = [...contentIds, ...filteredPlaceholderIds];
+    if (additive) addElementsToSelection(ids);
+    else setSelectedElements(ids);
+    setDraftArea(null);
   };
 
-  const handleLayerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return;
-    if (selectionMode === "area") return; // handled by mousedown/up
-    const { xNorm, yNorm } = toSlideCoords(e);
-    setDraftPin({ x: xNorm, y: yNorm });
-    setDraftComment("");
-  };
+  const selectedPlaceholders = React.useMemo<Placeholder[]>(() => {
+    const byIdx = new Map(layout.placeholders.map((p) => [p.idx, p]));
+    const out: Placeholder[] = [];
+    for (const id of selectedElementIds) {
+      const parsed = parseElementId(id);
+      if (!parsed || parsed.slideId !== slideId) continue;
+      const p = byIdx.get(parsed.idx);
+      if (p) out.push(p);
+    }
+    return out;
+  }, [selectedElementIds, slideId, layout.placeholders]);
 
-  const selectedPh = selectedPlaceholderIdx !== null
-    ? layout.placeholders.find((p) => p.idx === selectedPlaceholderIdx)
-    : null;
+  const selectedContentElements = React.useMemo<ContentElementMeta[]>(() => {
+    const out: ContentElementMeta[] = [];
+    for (const id of selectedElementIds) {
+      if (!isContentElementId(id)) continue;
+      const parsed = parseContentElementId(id);
+      if (!parsed || parsed.slideId !== slideId) continue;
+      const entry = contentIndex?.[id];
+      if (entry) out.push(entry);
+    }
+    return out;
+  }, [selectedElementIds, slideId, contentIndex]);
 
   const submitDraft = async () => {
     const comment = draftComment.trim();
@@ -275,36 +536,10 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       return;
     }
 
-    const isArea = !!draftArea && !drawingArea;
-    const position = isArea
-      ? {
-          x: (draftArea!.x1 + draftArea!.x2) / 2,
-          y: (draftArea!.y1 + draftArea!.y2) / 2,
-        }
-      : draftPin ?? { x: 0.5, y: 0.5 };
-
+    const position = draftPin ?? { x: 0.5, y: 0.5 };
     const relX = position.x;
     const relY = position.y;
-    const xPercent = relX * 100;
-    const yPercent = relY * 100;
-    const nearest = findNearestPlaceholder(layout, xPercent, yPercent);
-
-    let overlapping: Placeholder[] | undefined;
-    let area: AreaRect | undefined;
-    if (isArea) {
-      area = {
-        x1: draftArea!.x1,
-        y1: draftArea!.y1,
-        x2: draftArea!.x2,
-        y2: draftArea!.y2,
-      };
-      overlapping = findOverlappingPlaceholders(layout, {
-        x1: area.x1 * 100,
-        y1: area.y1 * 100,
-        x2: area.x2 * 100,
-        y2: area.y2 * 100,
-      });
-    }
+    const nearest = findNearestPlaceholder(layout, relX * 100, relY * 100);
 
     const prompt = buildCopilotPrompt({
       masterName: activeMasterName,
@@ -314,13 +549,14 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       relY,
       nearest,
       comment,
-      area,
-      overlapping,
-      selectedPlaceholder: selectedPh
-        ? { idx: selectedPh.idx, type: selectedPh.type }
-        : null,
       content: slideContent,
       themeColors,
+      slideId,
+      slideOrdinal,
+      slideSize,
+      codeSlideId,
+      selectedContentElements,
+      brandGuidePath,
     });
 
     try {
@@ -333,9 +569,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     addAnnotation({
       slideIndex: activeSlideIndex,
       position,
-      area,
-      targetPlaceholderIdx: selectedPh?.idx ?? nearest?.idx,
-      targetPlaceholderType: selectedPh?.type ?? nearest?.type,
+      targetPlaceholderIdx: nearest?.idx,
+      targetPlaceholderType: nearest?.type,
       comment,
     });
 
@@ -356,7 +591,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
 
   if (!visible) return null;
 
-  // Popover renderer (reused for pin / area)
   const renderPopover = (
     pinX: number,
     pinY: number,
@@ -402,21 +636,6 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       >
         Kommentar für Copilot
       </div>
-      {selectedPh && (
-        <div
-          style={{
-            fontSize: 10,
-            color: "#3b82f6",
-            marginBottom: 4,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          <Crosshair size={10} />
-          Placeholder: {selectedPh.type}:{selectedPh.idx}
-        </div>
-      )}
       <Textarea
         autoFocus
         rows={4}
@@ -442,10 +661,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     </>
   );
 
-  // Area selection rect (while drawing or after drawn)
-  const areaRectStyle = (
-    a: DraftArea,
-  ): React.CSSProperties => {
+  const areaRectStyle = (a: DraftArea): React.CSSProperties => {
     const left = Math.min(a.x1, a.x2) * 100;
     const top = Math.min(a.y1, a.y2) * 100;
     const width = Math.abs(a.x2 - a.x1) * 100;
@@ -456,7 +672,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       top: `${top}%`,
       width: `${width}%`,
       height: `${height}%`,
-      border: "2px dashed #3b82f6",
+      border: "2px solid #3b82f6",
       background: "rgba(59,130,246,0.08)",
       borderRadius: 3,
       pointerEvents: "none",
@@ -464,93 +680,96 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
     };
   };
 
+  const selectedContentIds = selectedElementIds.filter(isContentElementId);
+
   return (
     <div
+      ref={overlayRef}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onClick={handleLayerClick}
       style={{
         position: "absolute",
         inset: 0,
-        width: SLIDE_W,
-        height: SLIDE_H,
-        cursor: selectionMode === "area" ? "crosshair" : "crosshair",
+        width: renderSize.width,
+        height: renderSize.height,
+        cursor: "default",
         zIndex: 10,
       }}
     >
-      {/* Mode switcher (top right corner) */}
-      <div
-        style={{
-          position: "absolute",
-          top: 6,
-          right: 6,
-          zIndex: 22,
-          display: "flex",
-          gap: 2,
-          background: "rgba(20,20,20,0.85)",
-          border: "1px solid #2a2a2a",
-          borderRadius: 6,
-          padding: 2,
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <Tooltip content="Pin-Modus" side="bottom">
-          <button
-            type="button"
-            onClick={() => setSelectionMode("pin")}
+      {/* Selection highlight: blue outline + tint over each selected content element */}
+      {selectedContentIds.map((id, i) => {
+        const entry = contentIndex?.[id];
+        if (!entry) return null;
+        const { x, y, w, h } = entry.rect;
+        return (
+          <div
+            key={id}
             style={{
-              width: 26,
-              height: 26,
-              border: "none",
-              borderRadius: 4,
-              background:
-                selectionMode === "pin"
-                  ? "rgba(59,130,246,0.25)"
-                  : "transparent",
-              color:
-                selectionMode === "pin" ? "#3b82f6" : "#888",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
+              position: "absolute",
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: `${w * 100}%`,
+              height: `${h * 100}%`,
+              border: "2.5px solid #3b82f6",
+              borderRadius: 3,
+              background: "rgba(59,130,246,0.12)",
+              boxShadow: "0 0 0 3px rgba(59,130,246,0.28)",
+              pointerEvents: "none",
+              zIndex: 12,
             }}
           >
-            <Crosshair size={14} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Bereich markieren" side="bottom">
-          <button
-            type="button"
-            onClick={() => setSelectionMode("area")}
-            style={{
-              width: 26,
-              height: 26,
-              border: "none",
-              borderRadius: 4,
-              background:
-                selectionMode === "area"
-                  ? "rgba(59,130,246,0.25)"
-                  : "transparent",
-              color:
-                selectionMode === "area" ? "#3b82f6" : "#888",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <MousePointerSquareDashed size={14} />
-          </button>
-        </Tooltip>
-      </div>
+            <span
+              style={{
+                position: "absolute",
+                top: -2,
+                left: -2,
+                transform: "translateY(-100%)",
+                fontSize: 10,
+                fontFamily: "monospace",
+                padding: "2px 6px",
+                background: "#3b82f6",
+                color: "#fff",
+                borderRadius: "3px 3px 3px 0",
+                lineHeight: 1.2,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {i + 1} · {describeContentElement(entry.type, entry.textContent)}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* Selection highlight: placeholder rects (rare; when a whole placeholder is selected directly) */}
+      {selectedPlaceholders.map((p) => (
+        <div
+          key={`ph-${p.idx}`}
+          style={{
+            position: "absolute",
+            left: `${p.position.x}%`,
+            top: `${p.position.y}%`,
+            width: `${p.position.w}%`,
+            height: `${p.position.h}%`,
+            border: "2.5px dashed #3b82f6",
+            borderRadius: 3,
+            background: "rgba(59,130,246,0.06)",
+            pointerEvents: "none",
+            zIndex: 11,
+          }}
+        />
+      ))}
 
       {/* Committed pins */}
       {slidePins.map((a) => (
         <React.Fragment key={a.id}>
-          {/* If annotation has an area, show it */}
-          {a.area && <div style={areaRectStyle(a.area)} />}
+          {a.area && <div style={areaRectStyle({
+            x1: a.area.x1,
+            y1: a.area.y1,
+            x2: a.area.x2,
+            y2: a.area.y2,
+          })} />}
           <Tooltip content={a.comment} side="top">
             <div
               style={{
@@ -603,20 +822,8 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
         </React.Fragment>
       ))}
 
-      {/* Draft: area rectangle being drawn */}
+      {/* Draft: area rectangle being drawn (marquee) */}
       {draftArea && drawingArea && <div style={areaRectStyle(draftArea)} />}
-
-      {/* Draft: completed area → show comment popover */}
-      {draftArea && !drawingArea && (
-        <>
-          <div style={areaRectStyle(draftArea)} />
-          {renderPopover(
-            (draftArea.x1 + draftArea.x2) / 2,
-            (draftArea.y1 + draftArea.y2) / 2,
-            commentForm,
-          )}
-        </>
-      )}
 
       {/* Draft: pin */}
       {draftPin && (

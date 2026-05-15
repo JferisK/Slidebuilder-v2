@@ -1,21 +1,97 @@
 import * as React from "react";
+import { Check } from "lucide-react";
 import type {
   Placeholder,
   SlideLayout,
+  SlideSize,
   SlideTheme,
 } from "@/parser/pptxParser";
+import {
+  circledNumber,
+  formatElementLabel,
+  makeElementId,
+} from "@/lib/elementId";
+import {
+  isContentElementId,
+  parseContentElementId,
+} from "@/lib/contentElementId";
+import { getRenderSlideSize } from "@/lib/slideSize";
+import {
+  useElementInstrumentation,
+  type ContentElementMeta,
+} from "@/hooks/useElementInstrumentation";
+import { useSlideStore } from "@/store/slideStore";
+
+const PlaceholderSlot: React.FC<{
+  slideId: string | undefined;
+  placeholderIdx: number;
+  disabled: boolean;
+  children: React.ReactNode;
+  style: React.CSSProperties;
+  extraProps: Record<string, unknown>;
+}> = ({ slideId, placeholderIdx, disabled, children, style, extraProps }) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const setContentElementsForPlaceholder = useSlideStore(
+    (s) => s.setContentElementsForPlaceholder,
+  );
+  const clearContentElementsForPlaceholder = useSlideStore(
+    (s) => s.clearContentElementsForPlaceholder,
+  );
+
+  const onEntries = React.useCallback(
+    (entries: ContentElementMeta[]) => {
+      if (!slideId) return;
+      setContentElementsForPlaceholder(slideId, placeholderIdx, entries);
+    },
+    [slideId, placeholderIdx, setContentElementsForPlaceholder],
+  );
+
+  const onUnmount = React.useCallback(() => {
+    if (!slideId) return;
+    clearContentElementsForPlaceholder(slideId, placeholderIdx);
+  }, [slideId, placeholderIdx, clearContentElementsForPlaceholder]);
+
+  useElementInstrumentation({
+    containerRef: ref,
+    slideId,
+    placeholderIdx,
+    disabled,
+    onEntries,
+    onUnmount,
+  });
+
+  return (
+    <div ref={ref} style={style} {...extraProps}>
+      {children}
+    </div>
+  );
+};
 
 export interface DynamicSlideProps {
   layout: SlideLayout;
   theme: SlideTheme;
+  slideSize?: SlideSize;
   content: Record<string, string>;
   isExporting?: boolean;
-  /** Currently selected placeholder idx (shown with accent border) */
-  selectedPlaceholderIdx?: number | null;
+  /** Unique id of the slide that owns these placeholders. */
+  slideId?: string;
+  /** 1-based ordinal of the slide (for human-readable labels). */
+  slideOrdinal?: number;
+  /**
+   * Element ids currently selected (ordered by selection time). Each entry has
+   * the form `${slideId}::${placeholderIdx}`.
+   */
+  selectedElementIds?: string[];
   /** Show dashed outlines around all placeholders */
   showPlaceholderOutlines?: boolean;
-  /** Called when a placeholder box is clicked */
-  onPlaceholderClick?: (placeholder: Placeholder) => void;
+  /**
+   * Optional React components keyed by placeholder idx. When a placeholder's
+   * idx matches a key here, the component is rendered inside the placeholder
+   * box instead of the default text rendering. Comes from a code slide.
+   */
+  codeSlots?: Record<string, React.FC>;
+  /** Placeholder idx values that should be fully skipped for this slide. */
+  hiddenPlaceholderIdxs?: Set<number>;
 }
 
 const FALLBACK_TEXT: Record<string, string> = {
@@ -34,8 +110,18 @@ function getText(placeholder: Placeholder, content: Record<string, string>) {
 function renderPlaceholderContent(
   placeholder: Placeholder,
   content: Record<string, string>,
+  isExporting: boolean,
 ): React.ReactNode {
-  const text = getText(placeholder, content);
+  const rawValue = content[String(placeholder.idx)];
+  const text =
+    rawValue !== undefined && rawValue !== ""
+      ? rawValue
+      : isExporting
+        ? ""
+        : getText(placeholder, content);
+  if (isExporting && text.trim() === "") {
+    return null;
+  }
 
   switch (placeholder.type) {
     case "title":
@@ -137,18 +223,26 @@ function renderPlaceholderContent(
 export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   layout,
   theme,
+  slideSize,
   content,
   isExporting = false,
-  selectedPlaceholderIdx = null,
+  slideId,
+  slideOrdinal = 1,
+  selectedElementIds,
   showPlaceholderOutlines = true,
-  onPlaceholderClick,
+  codeSlots,
+  hiddenPlaceholderIdxs,
 }) => {
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
+  const selectedList = selectedElementIds ?? [];
+  const renderSize = getRenderSlideSize(slideSize);
   return (
     <div
+      data-slide-root="true"
+      data-slide-id={slideId}
       style={{
-        width: 1280,
-        height: 720,
+        width: renderSize.width,
+        height: renderSize.height,
         position: "relative",
         overflow: "hidden",
         background: "var(--slide-bg)",
@@ -156,49 +250,97 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
       }}
     >
       {layout.placeholders.map((placeholder) => {
-        const isSelected = selectedPlaceholderIdx === placeholder.idx;
+        if (hiddenPlaceholderIdxs?.has(placeholder.idx)) return null;
+        const elementId = slideId
+          ? makeElementId(slideId, placeholder.idx)
+          : undefined;
+        const selectedContentElementIds = slideId
+          ? selectedList.filter((id) => {
+              if (!isContentElementId(id)) return false;
+              const parsed = parseContentElementId(id);
+              return (
+                parsed?.slideId === slideId &&
+                parsed.placeholderIdx === placeholder.idx
+              );
+            })
+          : [];
+        const selectionOrder = elementId
+          ? selectedList.indexOf(elementId)
+          : -1;
+        const isSelected =
+          selectionOrder >= 0 || selectedContentElementIds.length > 0;
+        const Slot = codeSlots?.[String(placeholder.idx)];
+        const hasSlot = Boolean(Slot);
+        const label = formatElementLabel(
+          slideOrdinal,
+          placeholder.type,
+          placeholder.idx,
+        );
         const outlineStyle: React.CSSProperties =
           !isExporting && showPlaceholderOutlines
             ? {
                 border: isSelected
-                  ? "2px solid #3b82f6"
-                  : "1px dashed rgba(150,150,150,0.35)",
+                  ? "2.5px solid #3b82f6"
+                  : hasSlot
+                    ? "1px dashed rgba(59,130,246,0.55)"
+                    : "1px dashed rgba(150,150,150,0.35)",
                 borderRadius: 2,
-                cursor: onPlaceholderClick ? "pointer" : undefined,
-                transition: "border-color 0.15s, box-shadow 0.15s",
+                transition:
+                  "border-color 0.15s, box-shadow 0.15s, background 0.15s",
                 boxShadow: isSelected
-                  ? "0 0 0 2px rgba(59,130,246,0.25)"
+                  ? "0 0 0 3px rgba(59,130,246,0.35)"
+                  : undefined,
+                background: isSelected
+                  ? "rgba(59,130,246,0.08)"
                   : undefined,
               }
             : {};
 
         return (
-          <div
+          <PlaceholderSlot
             key={`${placeholder.idx}-${placeholder.type}`}
-            data-placeholder-idx={placeholder.idx}
-            data-placeholder-type={placeholder.type}
-            onClick={(e) => {
-              if (onPlaceholderClick) {
-                e.stopPropagation();
-                onPlaceholderClick(placeholder);
-              }
-            }}
+            slideId={slideId}
+            placeholderIdx={placeholder.idx}
+            disabled={isExporting}
             style={{
               position: "absolute",
               left: `${placeholder.position.x}%`,
               top: `${placeholder.position.y}%`,
               width: `${placeholder.position.w}%`,
               height: `${placeholder.position.h}%`,
-              padding: "4px",
+              padding: hasSlot ? 0 : "4px",
               display: "flex",
-              alignItems: "flex-start",
+              alignItems: hasSlot ? "stretch" : "flex-start",
               justifyContent: "flex-start",
               overflow: "hidden",
               ...outlineStyle,
             }}
+            extraProps={{
+              "data-placeholder-idx": placeholder.idx,
+              "data-placeholder-type": placeholder.type,
+              "data-element-id": elementId,
+              "data-selected-content-element-ids":
+                selectedContentElementIds.length > 0
+                  ? JSON.stringify(selectedContentElementIds)
+                  : undefined,
+              "data-selection-order": isSelected ? selectionOrder + 1 : undefined,
+              "data-code-slot": hasSlot ? "true" : undefined,
+            }}
           >
-            {renderPlaceholderContent(placeholder, content)}
-            {/* Small label showing type + idx in outline mode */}
+            {Slot ? (
+              <div
+                style={{ width: "100%", height: "100%" }}
+                data-selected-content-element-ids={
+                  selectedContentElementIds.length > 0
+                    ? JSON.stringify(selectedContentElementIds)
+                    : undefined
+                }
+              >
+                <Slot />
+              </div>
+            ) : (
+              renderPlaceholderContent(placeholder, content, isExporting)
+            )}
             {!isExporting && showPlaceholderOutlines && (
               <span
                 style={{
@@ -209,18 +351,33 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
                   fontFamily: "monospace",
                   padding: "1px 4px",
                   background: isSelected
-                    ? "rgba(59,130,246,0.7)"
-                    : "rgba(0,0,0,0.45)",
+                    ? "#3b82f6"
+                    : hasSlot
+                      ? "rgba(59,130,246,0.55)"
+                      : "rgba(0,0,0,0.45)",
                   color: "#fff",
                   borderRadius: "0 2px 0 3px",
                   lineHeight: 1.4,
                   pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontWeight: isSelected ? 700 : 400,
                 }}
               >
-                {placeholder.type}:{placeholder.idx}
+                {isSelected && (
+                  <>
+                    <span style={{ fontSize: 9 }}>
+                      {circledNumber(selectionOrder + 1)}
+                    </span>
+                    <Check size={8} strokeWidth={3} />
+                  </>
+                )}
+                <span>{label}</span>
+                {hasSlot && !isSelected && <span>· code</span>}
               </span>
             )}
-          </div>
+          </PlaceholderSlot>
         );
       })}
     </div>

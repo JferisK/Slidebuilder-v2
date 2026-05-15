@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(xargs grep *)",
+      "Bash(xargs head *)",
+      "Bash(awk '{print $1}')",
+      "Skill(load-template-context)"
+    ]
+  }
+}

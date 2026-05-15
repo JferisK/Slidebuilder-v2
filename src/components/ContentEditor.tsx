@@ -8,6 +8,8 @@ interface ContentEditorProps {
   layout: SlideLayout;
   slideIndex: number;
   content: Record<string, string>;
+  /** Placeholder idx values that are owned by a code slide (hidden from editor). */
+  codeSlotIdxs?: Set<string>;
 }
 
 const LABELS: Record<string, string> = {
@@ -47,17 +49,21 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({
   layout,
   slideIndex,
   content,
+  codeSlotIdxs,
 }) => {
   const updateSlideContent = useSlideStore((s) => s.updateSlideContent);
 
-  const editablePlaceholders = layout.placeholders.filter((p) =>
-    EDITABLE_TYPES.has(p.type),
+  const editablePlaceholders = layout.placeholders.filter(
+    (p) =>
+      EDITABLE_TYPES.has(p.type) && !codeSlotIdxs?.has(String(p.idx)),
   );
 
   if (editablePlaceholders.length === 0) {
     return (
       <div className="text-xs text-[var(--app-muted)]">
-        Dieses Layout hat keine bearbeitbaren Felder.
+        {codeSlotIdxs && codeSlotIdxs.size > 0
+          ? "Alle Textfelder werden von der React-Folie gefüllt."
+          : "Dieses Layout hat keine bearbeitbaren Felder."}
       </div>
     );
   }

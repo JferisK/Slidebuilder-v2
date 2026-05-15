@@ -17,8 +17,10 @@ export interface StoredTemplate {
   name: string;
   fileName: string;
   uploadedAt: number;
+  parserVersion?: number;
   pptxData: ArrayBuffer;
   parsed: ParsedPresentation;
+  layoutSlotOverrides?: Record<string, Record<string, number>>;
 }
 
 export interface ProjectFolder {
@@ -35,6 +37,8 @@ export interface SavedSlide {
   layoutId: string;
   content: Record<string, string>;
   reactCode?: string;
+  fileName?: string;
+  relativePath?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -45,6 +49,8 @@ export interface Project {
   templateId: string;
   folders: ProjectFolder[];
   slides: SavedSlide[];
+  directoryHandle?: FileSystemDirectoryHandle | null;
+  directoryName?: string | null;
   createdAt: number;
   updatedAt: number;
 }
