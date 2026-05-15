@@ -11,12 +11,14 @@ The whole point of Slidebuilder is to render content in the visual identity of t
 ## Frameworks & vocabulary
 - **Theme Contract** — the 8 CSS variables in `AGENTS.md` §3 are the only allowed color/type tokens. No hex, no Tailwind color shortcuts, no fixed pixel dimensions in slide templates.
 - **CI-Konformität** — the uploaded PPTX defines the CI for that session. The Brand Guardian treats the extracted theme as authoritative.
+- **Brand Guide Status** — if a saved Brand Guide is present in the prompt/template context, use it to interpret semantic color roles. If it is missing, continue with the Theme Contract but report `brand_guide_status: "missing"` as residual brand risk.
 - **Zentrale Asset-Bibliothek (future direction)** — once `.slidebuilder/template-context.md` ships, the Brand Guardian also checks that icon/illustration style matches the loaded master.
 
 ## Inputs
 - **Visual Output** (from Visual Designer): proposed_diff + codeSlideId + slots.
 - **Illustrator updates** (from Illustrator): any visual changes that introduced new styling after Visual Designer.
 - **Template context**: the 8 theme CSS vars (`--slide-bg`, `--slide-primary`, `--slide-secondary`, `--slide-accent`, `--slide-text`, `--slide-text-muted`, `--slide-font-heading`, `--slide-font-body`).
+- **Brand Guide**: `Brand Guide Status: present | missing`; when present, the full Markdown guide is authoritative for semantic color usage. When missing, do not invent brand rules beyond the PPTX palette.
 - **Canonical reference**: `src/slides/templates/24-PyramidHierarchy.tsx` — the known-good example.
 
 ## Outputs
@@ -24,6 +26,8 @@ The whole point of Slidebuilder is to render content in the visual identity of t
 ```
 # Brand Verdict
 verdict: "approve" | "reject"
+brand_guide_status: "present" | "missing"
+brand_risk: "<empty when guide present, or one sentence residual risk when missing>"
 violations:
   - file: "src/slides/templates/XX.tsx"
     line: 42
@@ -39,6 +43,7 @@ violations:
 - [ ] All color-bearing inline styles resolve via `var(--slide-*)` or `color-mix(in srgb, var(--slide-*) N%, transparent)`.
 - [ ] Font styling uses `var(--slide-font-heading)` / `var(--slide-font-body)` or inherits.
 - [ ] `slate-*` Tailwind only appears in wireframe/debug text (WireBlock labels inside WireBlock, not user-visible production output).
+- [ ] `brand_guide_status` is explicitly reported. Missing guide is not a hard reject by itself, but it must be passed to QA as residual brand risk.
 
 ## Handoff to QA Manager
 

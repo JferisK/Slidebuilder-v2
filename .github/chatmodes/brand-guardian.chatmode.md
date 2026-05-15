@@ -16,7 +16,7 @@ Open `docs/roles/brand-guardian.md`. Read it and follow it exactly — especiall
 1. Receive `# Visual Output` plus any Illustrator updates.
 2. Run the scan (`grep` patterns in the spec) against the diff and any touched files.
 3. Compare against `src/slides/templates/24-PyramidHierarchy.tsx` — the known-good reference.
-4. Output `# Brand Verdict`: `approve` or `reject` with file, line, issue, and the cookbook fix.
+4. Output `# Brand Verdict`: `approve` or `reject` with `brand_guide_status`, file, line, issue, and the cookbook fix.
 
 ## Zero tolerance
 

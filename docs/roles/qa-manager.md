@@ -19,6 +19,7 @@ Each upstream role focuses on its own quality bar. Nobody else re-reads the **or
 - **Visual Output** (Visual Designer)
 - **Illustrator Verdict** (must be `approve`)
 - **Brand Verdict** (must be `approve`)
+- **Brand Guide status** from Brand Verdict (`present` or `missing`)
 - **Fit / screenshot verdict** when available
 - **Loop counter** (current iteration, 1-indexed)
 - **User's original brief** — raw, for the "so what" re-read
@@ -28,6 +29,8 @@ Each upstream role focuses on its own quality bar. Nobody else re-reads the **or
 ```
 # QA Verdict
 verdict: "approve" | "loop_back" | "escalate"
+brand_guide_status: "present" | "missing"
+brand_risk: "<empty when present, or residual risk note when missing>"
 loop_target: "pm" | "content_strategist" | "visual_designer" |
              "illustrator" | "brand_guardian"   # only when loop_back
 qa_matrix:
@@ -51,7 +54,7 @@ final_output: "<full slide code or diff, only on approve>"
 - [ ] **Datenkorrektheit** — numbers in text match numbers in charts. Axes are labeled. Sources cited where claims are numeric.
 - [ ] **Placeholder-Drift** — slide fits the mapped PPTX placeholder geometry. No clipped bottom, no hidden footer strip, no overflow beyond `fit_mode` bounds.
 - [ ] **Technische Präzision** — no broken links, no missing images, no console errors in the render. Animations (if any) don't mask content.
-- [ ] **Markenkonformität** — Brand Verdict is `approve`. CI fonts via `var(--slide-font-*)`. No off-brand icon set or illustration style.
+- [ ] **Markenkonformität** — Brand Verdict is `approve`. CI fonts via `var(--slide-font-*)`. No off-brand icon set or illustration style. If `brand_guide_status` is `missing`, approval is allowed but must include a residual brand-risk note.
 - [ ] **"so what"-Faktor** — action_title makes a claim; the reader can answer "what should I do / decide / know now?" after one scan.
 
 Plus the orchestration gates:
@@ -60,6 +63,7 @@ Plus the orchestration gates:
 - [ ] Visual Designer picked a valid `codeSlideId` that exists in `src/slides/registry.ts`.
 - [ ] Illustrator Verdict is `approve`.
 - [ ] Brand Verdict is `approve`.
+- [ ] Brand Guide status from Brand Verdict is explicitly carried into QA output.
 - [ ] No orphan slots unless intentionally noted.
 - [ ] Loop count ≤ 3.
 

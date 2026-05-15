@@ -18,6 +18,7 @@ Open `docs/roles/qa-manager.md`. Read it and follow it exactly.
 - Visual Output
 - Illustrator Verdict
 - Brand Verdict
+- Brand Guide status from Brand Verdict
 - Fit / screenshot verdict
 - User's original brief
 - Loop counter

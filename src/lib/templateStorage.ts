@@ -12,6 +12,17 @@ const PROJECTS_STORE = "projects";
 
 // ---------- Types -----------------------------------------------------------
 
+export type BrandGuideSource = "copilot" | "claude" | "manual";
+
+export interface BrandGuideRecord {
+  masterId: string;
+  templateId: string;
+  markdown: string;
+  generatedAt: number;
+  source: BrandGuideSource;
+  inputSummary?: string;
+}
+
 export interface StoredTemplate {
   id: string;
   name: string;
@@ -21,6 +32,7 @@ export interface StoredTemplate {
   pptxData: ArrayBuffer;
   parsed: ParsedPresentation;
   layoutSlotOverrides?: Record<string, Record<string, number>>;
+  brandGuides?: Record<string, BrandGuideRecord>;
 }
 
 export interface ProjectFolder {

@@ -15,6 +15,7 @@ import {
   listProjects,
   saveProject as saveProjectToDb,
   deleteProject as deleteProjectFromDb,
+  type BrandGuideRecord,
   type StoredTemplate,
   type Project,
   type SavedSlide,
@@ -95,6 +96,7 @@ export interface ToastMessage {
 }
 
 export { type StoredTemplate, type Project, type SavedSlide, type ProjectFolder };
+export type { BrandGuideRecord, BrandGuideSource } from "@/lib/templateStorage";
 
 export interface SlideForgeStore {
   // ── Templates ─────────────────────────────────────────────
@@ -104,6 +106,11 @@ export interface SlideForgeStore {
   addTemplate: (tpl: StoredTemplate) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   setActiveTemplate: (id: string) => void;
+  setBrandGuideForMaster: (
+    templateId: string,
+    masterId: string,
+    guide: BrandGuideRecord | null,
+  ) => void;
 
   // ── Parsed presentation (driven by active template) ──────
   presentation: ParsedPresentation | null;
@@ -341,6 +348,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
             return {
               ...tpl,
               layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+              brandGuides: tpl.brandGuides ?? {},
             };
           }
           try {
@@ -350,6 +358,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
               parsed,
               parserVersion: PPTX_PARSER_VERSION,
               layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+              brandGuides: tpl.brandGuides ?? {},
             };
             await saveTemplateToDb(nextTpl);
             return nextTpl;
@@ -358,6 +367,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
             return {
               ...tpl,
               layoutSlotOverrides: tpl.layoutSlotOverrides ?? {},
+              brandGuides: tpl.brandGuides ?? {},
             };
           }
         }),
@@ -395,6 +405,29 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     if (!tpl) return;
     set({ activeTemplateId: id });
     get().setParsedPresentation(tpl.parsed);
+  },
+
+  setBrandGuideForMaster: (templateId, masterId, guide) => {
+    const { templates } = get();
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const nextGuides = { ...(template.brandGuides ?? {}) };
+    if (guide) nextGuides[masterId] = guide;
+    else delete nextGuides[masterId];
+
+    const updatedTemplate: StoredTemplate = {
+      ...template,
+      brandGuides: nextGuides,
+    };
+    const nextTemplates = templates.map((t) =>
+      t.id === templateId ? updatedTemplate : t,
+    );
+
+    void saveTemplateToDb(updatedTemplate).catch((err) => {
+      console.warn("[store] save brand guide failed:", err);
+    });
+    set({ templates: nextTemplates });
   },
 
   // ── Parsed presentation ──────────────────────────────────

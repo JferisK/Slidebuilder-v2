@@ -24,6 +24,8 @@ export const SlideCanvas: React.FC = () => {
   const canvasZoom = useSlideStore((s) => s.canvasZoom);
   const setCanvasZoom = useSlideStore((s) => s.setCanvasZoom);
   const resetZoom = useSlideStore((s) => s.resetZoom);
+  const templates = useSlideStore((s) => s.templates);
+  const activeTemplateId = useSlideStore((s) => s.activeTemplateId);
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -82,6 +84,10 @@ export const SlideCanvas: React.FC = () => {
   }
 
   const codeSlide = getCodeSlide(activeSlide.codeSlideId);
+  const activeTemplate = activeTemplateId
+    ? templates.find((t) => t.id === activeTemplateId)
+    : undefined;
+  const activeBrandGuide = activeTemplate?.brandGuides?.[activeMaster.id];
   const mapping = activeSlide.codeSlotMapping;
   const codeSlotsByIdx = React.useMemo(() => {
     if (!codeSlide || !mapping) return undefined;
@@ -164,6 +170,7 @@ export const SlideCanvas: React.FC = () => {
               themeColors={
                 activeMaster.theme.cssVars as unknown as Record<string, string>
               }
+              brandGuide={activeBrandGuide}
             />
           </div>
         </div>

@@ -8,6 +8,7 @@ import type {
 import {
   useSlideStore,
   type AreaRect,
+  type BrandGuideRecord,
   type ContentElementIndex,
 } from "@/store/slideStore";
 import type { ContentElementMeta } from "@/hooks/useElementInstrumentation";
@@ -39,6 +40,7 @@ interface AnnotationLayerProps {
   slideOrdinal: number;
   slideContent: Record<string, string>;
   themeColors: Record<string, string>;
+  brandGuide?: BrandGuideRecord;
 }
 
 interface DraftPin {
@@ -190,6 +192,7 @@ function buildCopilotPrompt({
   slideSize,
   codeSlideId,
   selectedContentElements,
+  brandGuide,
 }: {
   masterName: string;
   layoutName: string;
@@ -205,6 +208,7 @@ function buildCopilotPrompt({
   slideSize?: SlideSize;
   codeSlideId?: string;
   selectedContentElements: ContentElementMeta[];
+  brandGuide?: BrandGuideRecord;
 }): string {
   const renderSize = getRenderSlideSize(slideSize);
   const lines: string[] = [
@@ -233,6 +237,14 @@ function buildCopilotPrompt({
     `  Text gedämpft: ${themeColors["--slide-text-muted"] ?? "?"}`,
     `  Font Heading:  ${themeColors["--slide-font-heading"] ?? "?"}`,
     `  Font Body:     ${themeColors["--slide-font-body"] ?? "?"}`,
+    "",
+    "## Brand Guide",
+    brandGuide
+      ? `Brand Guide Status: present (source=${brandGuide.source}, generatedAt=${new Date(brandGuide.generatedAt).toISOString()})`
+      : "Brand Guide Status: missing",
+    brandGuide
+      ? brandGuide.markdown
+      : "Pflichtwarnung: Fuer diesen Folienmaster ist noch kein Brand Guide gespeichert. Die KI darf den Theme-Kontrakt weiter nutzen, muss aber im Brand Guardian/QA-Output `brand_guide_status: \"missing\"` ausweisen und die Farbinterpretation als Restrisiko markieren. Empfehlung: `/create-brand-guide` mit dem Template-Kontext aus der App ausfuehren.",
     "",
     "## Theme-Kontrakt (Pflicht, aus AGENTS.md §3)",
     "Farben AUSSCHLIESSLICH via `var(--slide-*)` in Inline-Styles setzen — keine Tailwind-Farb-Klassen (kein `bg-amber-*`, `text-blue-*`, `border-red-*`).",
@@ -343,6 +355,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
   slideOrdinal,
   slideContent,
   themeColors,
+  brandGuide,
 }) => {
   const visible = useSlideStore((s) => s.annotationsVisible);
   const annotations = useSlideStore((s) => s.annotations);
@@ -548,6 +561,7 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       slideSize,
       codeSlideId,
       selectedContentElements,
+      brandGuide,
     });
 
     try {
