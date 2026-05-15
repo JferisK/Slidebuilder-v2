@@ -34,8 +34,17 @@ const INLINE_TEXT_TAGS = new Set([
   "CODE",
 ]);
 
+export const SELECTABLE_ATTR = "data-selectable";
+
 export function isContentElement(el: Element): boolean {
   if (!(el instanceof HTMLElement)) return false;
+  // Opt-in: any element explicitly marked as selectable in a slide template
+  // is selectable as long as it carries text. This lets div/section/button
+  // primitives inside React slide templates participate in selection without
+  // forcing every template to use semantic tags.
+  if (el.hasAttribute(SELECTABLE_ATTR)) {
+    return (el.textContent ?? "").trim().length > 0;
+  }
   const tag = el.tagName;
   if (CONTENT_TAGS.has(tag)) {
     return (el.textContent ?? "").trim().length > 0;
@@ -47,6 +56,8 @@ export function isContentElement(el: Element): boolean {
     for (const child of Array.from(el.children)) {
       if (CONTENT_TAGS.has(child.tagName)) return false;
       if (INLINE_TEXT_TAGS.has(child.tagName)) continue;
+      if (child instanceof HTMLElement && child.hasAttribute(SELECTABLE_ATTR))
+        return false;
       return false;
     }
     return true;

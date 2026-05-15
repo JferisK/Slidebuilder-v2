@@ -70,6 +70,7 @@ export const WireBlock: React.FC<{
   children?: React.ReactNode;
 }> = ({ label, variant = "default", className = "", style, hint, children }) => (
   <div
+    data-selectable=""
     className={`flex flex-col justify-center items-center text-center border-2 border-dashed rounded-md p-1.5 overflow-hidden ${className}`}
     style={{ ...variantStyles[variant], ...style }}
   >
@@ -109,6 +110,7 @@ export const WireLegend: React.FC<{ items: string[] }> = ({ items }) => (
     {items.map((it, i) => (
       <span
         key={i}
+        data-selectable=""
         className="border border-dashed rounded px-1 py-0.5"
         style={{ borderColor: tint("--slide-text-muted", 50) }}
       >

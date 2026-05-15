@@ -2,7 +2,7 @@ import JSZip from "jszip";
 
 // ---------- Types -----------------------------------------------------------
 
-export const PPTX_PARSER_VERSION = 3;
+export const PPTX_PARSER_VERSION = 4;
 
 export interface ParsedPresentation {
   masters: SlideMaster[];
@@ -582,6 +582,42 @@ async function parseMasterRels(
   return entries;
 }
 
+async function resolveMasterThemePath(
+  zip: JSZip,
+  masterPath: string,
+): Promise<string | null> {
+  const relPath = masterPath.replace(
+    /slideMasters\/(slideMaster\d+)\.xml$/,
+    "slideMasters/_rels/$1.xml.rels",
+  );
+  const doc = await readXml(zip, relPath);
+  if (!doc) return null;
+  try {
+    const rels = Array.from(doc.getElementsByTagName("Relationship"));
+    for (const r of rels) {
+      const type = r.getAttribute("Type") || "";
+      if (!type.endsWith("/theme")) continue;
+      const target = r.getAttribute("Target") || "";
+      return resolveZipPath(masterPath, target);
+    }
+  } catch (err) {
+    console.warn("[pptxParser] Theme rel parse error:", err);
+  }
+  return null;
+}
+
+async function resolveMasterTheme(
+  zip: JSZip,
+  masterPath: string,
+  fallback: SlideTheme,
+): Promise<SlideTheme> {
+  const themePath = await resolveMasterThemePath(zip, masterPath);
+  if (!themePath) return fallback;
+  const doc = await readXml(zip, themePath);
+  if (!doc) return fallback;
+  return parseThemeFromDoc(doc);
+}
+
 function resolveZipPath(basePath: string, relPath: string): string {
   if (relPath.startsWith("/")) return relPath.replace(/^\/+/, "");
   const baseParts = basePath.split("/");
@@ -721,10 +757,10 @@ async function parsePptxSource(
 ): Promise<ParsedPresentation> {
   const zip = await JSZip.loadAsync(source);
 
-  let theme = FALLBACK_THEME;
+  let fallbackTheme = FALLBACK_THEME;
   const themeDoc = await readXml(zip, "ppt/theme/theme1.xml");
   if (themeDoc) {
-    theme = parseThemeFromDoc(themeDoc);
+    fallbackTheme = parseThemeFromDoc(themeDoc);
   } else {
     console.warn("[pptxParser] ppt/theme/theme1.xml missing, using fallback");
   }
@@ -748,11 +784,16 @@ async function parsePptxSource(
 
   const masters: SlideMaster[] = [];
   for (let i = 0; i < masterPaths.length; i++) {
+    const masterTheme = await resolveMasterTheme(
+      zip,
+      masterPaths[i],
+      fallbackTheme,
+    );
     const master = await parseMaster(
       zip,
       masterPaths[i],
       i,
-      theme,
+      masterTheme,
       slideSize,
     );
     masters.push(master);

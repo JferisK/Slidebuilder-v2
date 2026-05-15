@@ -21,6 +21,8 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { ExportButton } from "./ExportButton";
 import { ProjectManager } from "./ProjectManager";
+import { MasterPicker } from "./MasterPicker";
+import { CopilotPromptDrawer } from "./CopilotPromptDrawer";
 import {
   getRegisteredSlidesForRepoFolder,
   slideTemplates,
@@ -46,6 +48,8 @@ const ContentEditPanel: React.FC = () => {
   const showToast = useSlideStore((s) => s.showToast);
 
   const [text, setText] = React.useState("");
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerPrompt, setDrawerPrompt] = React.useState("");
 
   const contentIds = React.useMemo(
     () => selectedElementIds.filter(isContentElementId),
@@ -56,12 +60,30 @@ const ContentEditPanel: React.FC = () => {
     if (contentIds.length === 0) setText("");
   }, [contentIds.length]);
 
-  if (contentIds.length === 0 || !activeSlide || !activeLayout) return null;
+  const drawer = (
+    <CopilotPromptDrawer
+      open={drawerOpen}
+      initialPrompt={drawerPrompt}
+      onClose={() => setDrawerOpen(false)}
+      onCopied={async (value) => {
+        try {
+          await navigator.clipboard.writeText(value);
+          showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
+        } catch {
+          showToast("⚠️ Clipboard nicht verfügbar", "error");
+        }
+        setDrawerOpen(false);
+        clearElementSelection();
+      }}
+    />
+  );
+
+  if (contentIds.length === 0 || !activeSlide || !activeLayout) return drawer;
 
   const slideId = activeSlide.id;
   const slideOrdinal = activeSlideIndex + 1;
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const intent = text.trim();
     if (!intent) return;
     const lines: string[] = [
@@ -109,72 +131,70 @@ const ContentEditPanel: React.FC = () => {
       "Referenziere Elemente ausschließlich per `id`.",
       "Zeige den geänderten Code-Abschnitt.",
     );
-    try {
-      await navigator.clipboard.writeText(lines.join("\n").trim());
-      showToast("✅ Prompt kopiert — in Copilot Chat einfügen (Strg+V)");
-    } catch {
-      showToast("⚠️ Clipboard nicht verfügbar", "error");
-    }
-    clearElementSelection();
+    setDrawerPrompt(lines.join("\n").trim());
+    setDrawerOpen(true);
   };
 
   return (
-    <div className="rounded-lg border border-[#3b82f6] bg-[var(--app-surface)] p-3">
-      <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[#3b82f6]">
-        {contentIds.length === 1
-          ? "1 Element ausgewählt"
-          : `${contentIds.length} Elemente ausgewählt`}
-      </div>
-      <div className="mb-3 flex flex-col gap-1">
-        {contentIds.slice(0, 5).map((id) => {
-          const entry = contentIndex?.[id];
-          return (
-            <div key={id} className="truncate text-[11px] text-[var(--app-text)]">
-              · {entry
-                ? describeContentElement(entry.type, entry.textContent)
-                : id}
+    <>
+      <div className="rounded-lg border border-[#3b82f6] bg-[var(--app-surface)] p-3">
+        <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[#3b82f6]">
+          {contentIds.length === 1
+            ? "1 Element ausgewählt"
+            : `${contentIds.length} Elemente ausgewählt`}
+        </div>
+        <div className="mb-3 flex flex-col gap-1">
+          {contentIds.slice(0, 5).map((id) => {
+            const entry = contentIndex?.[id];
+            return (
+              <div key={id} className="truncate text-[11px] text-[var(--app-text)]">
+                · {entry
+                  ? describeContentElement(entry.type, entry.textContent)
+                  : id}
+              </div>
+            );
+          })}
+          {contentIds.length > 5 && (
+            <div className="text-[10px] text-[var(--app-muted)]">
+              + {contentIds.length - 5} weitere
             </div>
-          );
-        })}
-        {contentIds.length > 5 && (
-          <div className="text-[10px] text-[var(--app-muted)]">
-            + {contentIds.length - 5} weitere
-          </div>
-        )}
+          )}
+        </div>
+        <Textarea
+          autoFocus
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder="Was soll geändert werden?"
+          className="mb-2"
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            onClick={() => clearElementSelection()}
+          >
+            Auswahl leeren
+          </Button>
+          <Button
+            size="sm"
+            className="flex-1"
+            disabled={!text.trim()}
+            onClick={handleSubmit}
+          >
+            Im Drawer öffnen
+          </Button>
+        </div>
       </div>
-      <Textarea
-        autoFocus
-        rows={3}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-            e.preventDefault();
-            void handleSubmit();
-          }
-        }}
-        placeholder="Was soll geändert werden?"
-        className="mb-2"
-      />
-      <div className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex-1"
-          onClick={() => clearElementSelection()}
-        >
-          Auswahl leeren
-        </Button>
-        <Button
-          size="sm"
-          className="flex-1"
-          disabled={!text.trim()}
-          onClick={handleSubmit}
-        >
-          📋 Kopieren
-        </Button>
-      </div>
-    </div>
+      {drawer}
+    </>
   );
 };
 
@@ -502,10 +522,6 @@ export const SettingsPanel: React.FC = () => {
         })),
       ];
 
-  const masterOptions = presentation.masters.map((m) => ({
-    value: m.id,
-    label: m.name,
-  }));
   const layoutOptions = activeMaster.layouts.map((l) => ({
     value: l.id,
     label: l.name,
@@ -585,10 +601,10 @@ export const SettingsPanel: React.FC = () => {
 
           <div>
             <SectionLabel>Folienmaster</SectionLabel>
-            <Select
-              value={activeMaster.id}
-              options={masterOptions}
-              onValueChange={(v) => setActiveMaster(v)}
+            <MasterPicker
+              masters={presentation.masters}
+              activeId={activeMaster.id}
+              onChange={(id) => setActiveMaster(id)}
             />
           </div>
 
