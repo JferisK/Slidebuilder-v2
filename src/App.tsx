@@ -1,4 +1,5 @@
 import * as React from "react";
+import { FolderOpen } from "lucide-react";
 import { parsePptx } from "./parser/pptxParser";
 import { UploadScreen } from "./components/UploadScreen";
 import { SlideCanvas } from "./components/SlideCanvas";
@@ -17,6 +18,7 @@ const App: React.FC = () => {
     (s) => s.setParsedPresentation,
   );
   const showToast = useSlideStore((s) => s.showToast);
+  const templates = useSlideStore((s) => s.templates);
 
   // Load persisted templates + projects on mount
   React.useEffect(() => {
@@ -88,6 +90,20 @@ const App: React.FC = () => {
         <span className="text-xs font-semibold tracking-tight">
           SlideForge
         </span>
+        <button
+          type="button"
+          onClick={() => {
+            useSlideStore.setState({ presentation: null });
+          }}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[10px] text-[var(--app-text)] transition-colors hover:border-[var(--app-accent)]"
+          title="Andere Kunden-Vorlage wählen oder neue hochladen"
+        >
+          <FolderOpen size={11} />
+          Vorlagen verwalten
+          <span className="ml-1 rounded-sm bg-[var(--app-panel)] px-1 text-[9px] text-[var(--app-muted)]">
+            {templates.length}
+          </span>
+        </button>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <main

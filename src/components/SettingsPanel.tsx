@@ -106,10 +106,15 @@ export const SettingsPanel: React.FC = () => {
       className="flex h-full flex-none flex-col border-l border-[var(--app-border)] bg-[var(--app-panel)]"
     >
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin p-4">
-        {/* Template switcher */}
-        {templates.length > 0 && (
-          <div>
-            <SectionLabel>Vorlage (PPTX)</SectionLabel>
+        {/* ── First block: Vorlage → Folienmaster → Layout cascade ── */}
+        <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+          <SectionLabel>Vorlage & Layout</SectionLabel>
+
+          {/* PowerPoint file (client template) */}
+          <div className="mb-3">
+            <label className="mb-1 block text-[10px] text-[var(--app-muted)]">
+              PowerPoint-Datei (Kunde)
+            </label>
             <div className="flex items-center gap-1">
               <div className="flex-1">
                 <Select
@@ -122,7 +127,7 @@ export const SettingsPanel: React.FC = () => {
                 size="icon"
                 variant="ghost"
                 onClick={handleUploadMore}
-                title="Weitere Vorlage hochladen"
+                title="Weitere PowerPoint-Datei hochladen"
               >
                 <Upload size={13} />
               </Button>
@@ -146,18 +151,45 @@ export const SettingsPanel: React.FC = () => {
               className="hidden"
               onChange={handleFileChange}
             />
+            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+              {templates.length} Vorlage{templates.length === 1 ? "" : "n"} verfügbar
+            </div>
           </div>
-        )}
 
-        <Separator />
+          {/* Folienmaster (within the selected file) */}
+          <div className="mb-3">
+            <label className="mb-1 block text-[10px] text-[var(--app-muted)]">
+              Folienmaster
+            </label>
+            <Select
+              value={activeMaster.id}
+              options={masterOptions}
+              onValueChange={(v) => setActiveMaster(v)}
+            />
+          </div>
 
-        <div>
-          <SectionLabel>Folienmaster</SectionLabel>
-          <Select
-            value={activeMaster.id}
-            options={masterOptions}
-            onValueChange={(v) => setActiveMaster(v)}
-          />
+          {/* Layout (within the selected master) */}
+          <div>
+            <label className="mb-1 block text-[10px] text-[var(--app-muted)]">
+              Layout
+            </label>
+            <Select
+              value={activeLayout.id}
+              options={layoutOptions}
+              onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
+            />
+            <div className="mt-1 text-[10px] text-[var(--app-muted)]">
+              {activeLayout.placeholders.length} Placeholder
+              {activeLayout.placeholders.length > 0 && (
+                <>
+                  :{" "}
+                  {activeLayout.placeholders
+                    .map((p) => `${p.type}:${p.idx}`)
+                    .join(", ")}
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Theme colors */}
@@ -174,29 +206,6 @@ export const SettingsPanel: React.FC = () => {
           <div className="mt-1 text-[10px] text-[var(--app-muted)]">
             Heading: {theme["--slide-font-heading"]?.split(",")[0]}
             {" · "}Body: {theme["--slide-font-body"]?.split(",")[0]}
-          </div>
-        </div>
-
-        <Separator />
-
-        <div>
-          <SectionLabel>Layout</SectionLabel>
-          <Select
-            value={activeLayout.id}
-            options={layoutOptions}
-            onValueChange={(v) => setLayoutForSlide(activeSlideIndex, v)}
-          />
-          <div className="mt-1 text-[10px] text-[var(--app-muted)]">
-            {activeLayout.placeholders.length} Placeholder
-            {activeLayout.placeholders.length !== 1 ? "" : ""}
-            {activeLayout.placeholders.length > 0 && (
-              <>
-                :{" "}
-                {activeLayout.placeholders
-                  .map((p) => `${p.type}:${p.idx}`)
-                  .join(", ")}
-              </>
-            )}
           </div>
         </div>
 

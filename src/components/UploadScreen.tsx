@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FileUp, Loader2, Palette } from "lucide-react";
+import { FileUp, Loader2, Palette, Trash2 } from "lucide-react";
 import { parsePptx } from "@/parser/pptxParser";
 import { useSlideStore, type StoredTemplate } from "@/store/slideStore";
 import { createDemoPresentation } from "@/lib/demoTemplate";
@@ -11,6 +11,7 @@ export const UploadScreen: React.FC = () => {
   );
   const addTemplate = useSlideStore((s) => s.addTemplate);
   const setActiveTemplate = useSlideStore((s) => s.setActiveTemplate);
+  const deleteTemplate = useSlideStore((s) => s.deleteTemplate);
   const templates = useSlideStore((s) => s.templates);
 
   const [loading, setLoading] = React.useState(false);
@@ -100,70 +101,94 @@ export const UploadScreen: React.FC = () => {
           </h1>
         </div>
         <p className="mb-6 text-xs text-[var(--app-muted)]">
-          Lade eine PowerPoint-Vorlage (<code>.pptx</code>), um alle
-          Folienmaster und Layouts automatisch zu erkennen.
+          {hasSaved
+            ? "Wähle eine bereits hochgeladene Kunden-Vorlage oder lade eine neue PowerPoint-Datei hoch."
+            : "Lade eine PowerPoint-Vorlage (.pptx), um alle Folienmaster und Layouts automatisch zu erkennen. Die Vorlage wird lokal gespeichert — du musst sie nur einmal hochladen."}
         </p>
 
-        {/* Demo button */}
-        <div className="mb-4">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleLoadDemo}
-            className="w-full"
-          >
-            <Palette size={14} />
-            Demo-Vorlage laden (3 Master, 11 Layouts)
-          </Button>
-          <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
-            Corporate Design, Startup Modern, Executive Dark — sofort ausprobieren
-          </p>
-        </div>
-
-        <div className="mb-4 flex items-center gap-2">
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-          <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
-            oder eigene Vorlage
-          </span>
-          <div className="h-px flex-1 bg-[var(--app-border)]" />
-        </div>
-
-        {/* Stored templates quick access */}
+        {/* Stored templates — primary path when present */}
         {hasSaved && (
-          <div className="mb-4">
+          <div className="mb-5">
             <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[var(--app-muted)]">
-              Gespeicherte Vorlagen
+              Bereits hochgeladene Vorlagen
             </div>
             <div className="flex flex-col gap-1">
               {templates.map((t) => (
-                <button
-                  type="button"
+                <div
                   key={t.id}
-                  onClick={() => {
-                    setParsedPresentation(t.parsed);
-                    setActiveTemplate(t.id);
-                  }}
-                  className="flex items-center gap-2 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-left text-xs text-[var(--app-text)] transition-colors hover:border-[var(--app-accent)] hover:bg-[rgba(59,130,246,0.05)]"
+                  className="group flex items-center gap-2 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 transition-colors hover:border-[var(--app-accent)] hover:bg-[rgba(59,130,246,0.05)]"
                 >
-                  <FileUp size={14} className="text-[var(--app-accent)]" />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{t.name}</span>
-                    <span className="text-[10px] text-[var(--app-muted)]">
-                      {t.fileName} •{" "}
-                      {new Date(t.uploadedAt).toLocaleDateString("de-DE")}
-                    </span>
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setParsedPresentation(t.parsed);
+                      setActiveTemplate(t.id);
+                    }}
+                    className="flex flex-1 items-center gap-2 text-left text-xs text-[var(--app-text)]"
+                  >
+                    <FileUp size={14} className="text-[var(--app-accent)]" />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t.name}</span>
+                      <span className="text-[10px] text-[var(--app-muted)]">
+                        {t.fileName} •{" "}
+                        {new Date(t.uploadedAt).toLocaleDateString("de-DE")}
+                        {" · "}
+                        {t.parsed.masters.length} Master
+                      </span>
+                    </div>
+                  </button>
+                  {t.id !== "demo-builtin" && (
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void deleteTemplate(t.id);
+                      }}
+                      title="Vorlage löschen"
+                    >
+                      <Trash2 size={12} />
+                    </Button>
+                  )}
+                </div>
               ))}
             </div>
-            <div className="my-3 flex items-center gap-2">
+            <div className="my-4 flex items-center gap-2">
               <div className="h-px flex-1 bg-[var(--app-border)]" />
               <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
-                oder neue Vorlage
+                oder neue Vorlage hinzufügen
               </span>
               <div className="h-px flex-1 bg-[var(--app-border)]" />
             </div>
           </div>
+        )}
+
+        {/* Demo button — only shown when there are no saved templates */}
+        {!hasSaved && (
+          <>
+            <div className="mb-4">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleLoadDemo}
+                className="w-full"
+              >
+                <Palette size={14} />
+                Demo-Vorlage laden (3 Master, 11 Layouts)
+              </Button>
+              <p className="mt-1.5 text-center text-[10px] text-[var(--app-muted)]">
+                Corporate Design, Startup Modern, Executive Dark — sofort ausprobieren
+              </p>
+            </div>
+
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-px flex-1 bg-[var(--app-border)]" />
+              <span className="text-[10px] uppercase tracking-wider text-[var(--app-muted)]">
+                oder eigene Vorlage
+              </span>
+              <div className="h-px flex-1 bg-[var(--app-border)]" />
+            </div>
+          </>
         )}
 
         <div
