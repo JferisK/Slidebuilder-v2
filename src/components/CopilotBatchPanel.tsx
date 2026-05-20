@@ -4,6 +4,7 @@ import {
   useActiveLayout,
   useActiveSlide,
   useSlideStore,
+  type ElementStyleOverrides,
 } from "@/store/slideStore";
 import {
   isContentElementId,
@@ -293,7 +294,7 @@ interface BuildBatchPromptArgs {
     targetPlaceholderIdx?: number;
     targetPlaceholderType?: string;
   }>;
-  elementStyleOverrides: Record<string, Record<string, unknown>>;
+  elementStyleOverrides: ElementStyleOverrides;
   contentIndex: Record<string, { type: string; textContent: string }> | undefined;
   placeholders: Array<{ idx: number; type: string }>;
   intent: string;

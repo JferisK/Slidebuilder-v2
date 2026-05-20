@@ -99,8 +99,9 @@ function findNearestPlaceholder(
   return best;
 }
 
-/** Content-element ids whose rects overlap the given area (x/y/w/h in 0-1). */
-function findOverlappingContentElementIds(
+/** Content-element ids whose rects are fully enclosed by the given area
+ *  (PowerPoint marquee semantics — partial overlap is NOT enough). */
+function findEnclosedContentElementIds(
   index: ContentElementIndex | undefined,
   area: { x1: number; y1: number; x2: number; y2: number },
 ): string[] {
@@ -116,7 +117,7 @@ function findOverlappingContentElementIds(
     const ey1 = r.y;
     const ex2 = r.x + r.w;
     const ey2 = r.y + r.h;
-    if (ex1 < ax2 && ex2 > ax1 && ey1 < ay2 && ey2 > ay1) out.push(id);
+    if (ex1 >= ax1 && ey1 >= ay1 && ex2 <= ax2 && ey2 <= ay2) out.push(id);
   }
   return out;
 }
@@ -140,8 +141,9 @@ function findContentElementIdAtPoint(
   return null;
 }
 
-/** Placeholders whose bounding box overlaps a given area rect (all in %) */
-function findOverlappingPlaceholders(
+/** Placeholders whose bounding box is fully enclosed by the area (PowerPoint
+ *  marquee semantics, %-coordinates). */
+function findEnclosedPlaceholders(
   layout: SlideLayout,
   area: { x1: number; y1: number; x2: number; y2: number },
 ): Placeholder[] {
@@ -154,7 +156,7 @@ function findOverlappingPlaceholders(
     const py1 = p.position.y;
     const px2 = p.position.x + p.position.w;
     const py2 = p.position.y + p.position.h;
-    return px1 < ax2 && px2 > ax1 && py1 < ay2 && py2 > ay1;
+    return px1 >= ax1 && py1 >= ay1 && px2 <= ax2 && py2 <= ay2;
   });
 }
 
@@ -475,14 +477,14 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({
       return;
     }
 
-    // Drag → marquee over both placeholders and content elements.
-    const contentIds = findOverlappingContentElementIds(contentIndex, {
+    // Drag → marquee with PowerPoint-style full-containment semantics.
+    const contentIds = findEnclosedContentElementIds(contentIndex, {
       x1: draftArea.x1,
       y1: draftArea.y1,
       x2: draftArea.x2,
       y2: draftArea.y2,
     });
-    const placeholderIds = findOverlappingPlaceholders(layout, {
+    const placeholderIds = findEnclosedPlaceholders(layout, {
       x1: draftArea.x1 * 100,
       y1: draftArea.y1 * 100,
       x2: draftArea.x2 * 100,
