@@ -15,6 +15,8 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Toast } from "./components/Toast";
 import { OnboardingScreen } from "./components/OnboardingScreen";
 import { GlobalCopilotDrawer } from "./components/GlobalCopilotDrawer";
+import { Button } from "./components/ui/button";
+import { Undo2, Redo2 } from "lucide-react";
 import { useSlideStore, type StoredTemplate } from "./store/slideStore";
 import { getCodeSlide } from "./slides/registry";
 
@@ -134,6 +136,10 @@ const App: React.FC = () => {
     (s) => s.setParsedPresentation,
   );
   const showToast = useSlideStore((s) => s.showToast);
+  const undo = useSlideStore((s) => s.undo);
+  const redo = useSlideStore((s) => s.redo);
+  const canUndo = useSlideStore((s) => s.historyPast.length > 0);
+  const canRedo = useSlideStore((s) => s.historyFuture.length > 0);
 
   if (previewSlideId) {
     return <PreviewScreen slideId={previewSlideId} />;
@@ -159,6 +165,31 @@ const App: React.FC = () => {
     setActiveTemplate,
     templates,
   ]);
+
+  // Global Undo/Redo keyboard shortcuts (skip when typing in a form field)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const tgt = e.target as HTMLElement | null;
+      if (
+        tgt &&
+        (tgt.tagName === "INPUT" ||
+          tgt.tagName === "TEXTAREA" ||
+          tgt.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (e.key === "y" || (e.key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   // Listen for additional upload events from SettingsPanel
   React.useEffect(() => {
@@ -226,6 +257,28 @@ const App: React.FC = () => {
         <span className="text-xs font-semibold tracking-tight">
           SlideForge
         </span>
+        <div className="ml-3 flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Rückgängig (Strg+Z)"
+            aria-label="Rückgängig"
+          >
+            <Undo2 size={13} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={redo}
+            disabled={!canRedo}
+            title="Wiederherstellen (Strg+Y)"
+            aria-label="Wiederherstellen"
+          >
+            <Redo2 size={13} />
+          </Button>
+        </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <main

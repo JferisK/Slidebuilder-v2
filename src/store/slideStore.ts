@@ -82,6 +82,14 @@ export const ELEMENT_STYLE_KEYS: ReadonlyArray<keyof ElementStyleOverride> = [
   "textAlign",
 ];
 
+/** Snapshot of everything that the frontend can edit (Undo/Redo target). */
+export interface HistorySnapshot {
+  elementStyleOverrides: ElementStyleOverrides;
+  slidesContent: Array<{ id: string; content: Record<string, string> }>;
+}
+
+const HISTORY_LIMIT = 50;
+
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
 export const ZOOM_STEP = 0.1;
@@ -154,6 +162,12 @@ export interface SlideForgeStore {
   clearElementStylesForMany: (ids: string[]) => void;
   clearAllElementStyles: () => void;
 
+  // ── Undo / Redo for frontend edits ───────────────────────
+  historyPast: HistorySnapshot[];
+  historyFuture: HistorySnapshot[];
+  undo: () => void;
+  redo: () => void;
+
   // ── Copilot drawer (shared open state) ───────────────────
   copilotDrawerOpen: boolean;
   copilotDrawerPrompt: string;
@@ -224,6 +238,23 @@ export interface SlideForgeStore {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+function snapshotForHistory(state: SlideForgeStore): HistorySnapshot {
+  return {
+    elementStyleOverrides: { ...state.elementStyleOverrides },
+    slidesContent: state.slides.map((s) => ({
+      id: s.id,
+      content: { ...s.content },
+    })),
+  };
+}
+
+function pushHistoryUpdate(state: SlideForgeStore): Partial<SlideForgeStore> {
+  const snap = snapshotForHistory(state);
+  const past = [...state.historyPast, snap];
+  if (past.length > HISTORY_LIMIT) past.shift();
+  return { historyPast: past, historyFuture: [] };
+}
 
 function findMaster(
   presentation: ParsedPresentation | null,
@@ -422,6 +453,8 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   selectedElementIds: [],
   contentElementIndex: {},
   elementStyleOverrides: {},
+  historyPast: [],
+  historyFuture: [],
   canvasZoom: 1,
   slides: [],
   currentToast: null,
@@ -445,6 +478,8 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       slides: initialSlide ? [initialSlide] : [],
       selectedElementIds: [],
       elementStyleOverrides: {},
+      historyPast: [],
+      historyFuture: [],
       canvasZoom: 1,
     });
   },
@@ -549,7 +584,8 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   setElementStyle: (id, patch) => {
-    const current = get().elementStyleOverrides;
+    const state = get();
+    const current = state.elementStyleOverrides;
     const existing = current[id] ?? {};
     const merged: ElementStyleOverride = { ...existing };
     for (const k of ELEMENT_STYLE_KEYS) {
@@ -568,12 +604,13 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     } else {
       next[id] = merged;
     }
-    set({ elementStyleOverrides: next });
+    set({ ...pushHistoryUpdate(state), elementStyleOverrides: next });
   },
 
   setElementStyleForMany: (ids, patch) => {
     if (ids.length === 0) return;
-    const current = get().elementStyleOverrides;
+    const state = get();
+    const current = state.elementStyleOverrides;
     const next = { ...current };
     for (const id of ids) {
       const existing = next[id] ?? {};
@@ -594,32 +631,74 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
         next[id] = merged;
       }
     }
-    set({ elementStyleOverrides: next });
+    set({ ...pushHistoryUpdate(state), elementStyleOverrides: next });
   },
 
   clearElementStyle: (id) => {
-    const current = get().elementStyleOverrides;
-    if (!(id in current)) return;
-    const next = { ...current };
+    const state = get();
+    if (!(id in state.elementStyleOverrides)) return;
+    const next = { ...state.elementStyleOverrides };
     delete next[id];
-    set({ elementStyleOverrides: next });
+    set({ ...pushHistoryUpdate(state), elementStyleOverrides: next });
   },
 
   clearElementStylesForMany: (ids) => {
     if (ids.length === 0) return;
-    const current = get().elementStyleOverrides;
+    const state = get();
     let changed = false;
-    const next = { ...current };
+    const next = { ...state.elementStyleOverrides };
     for (const id of ids) {
       if (id in next) {
         delete next[id];
         changed = true;
       }
     }
-    if (changed) set({ elementStyleOverrides: next });
+    if (changed) {
+      set({ ...pushHistoryUpdate(state), elementStyleOverrides: next });
+    }
   },
 
-  clearAllElementStyles: () => set({ elementStyleOverrides: {} }),
+  clearAllElementStyles: () => {
+    const state = get();
+    if (Object.keys(state.elementStyleOverrides).length === 0) return;
+    set({ ...pushHistoryUpdate(state), elementStyleOverrides: {} });
+  },
+
+  undo: () => {
+    const state = get();
+    if (state.historyPast.length === 0) return;
+    const snap = state.historyPast[state.historyPast.length - 1];
+    const past = state.historyPast.slice(0, -1);
+    const current = snapshotForHistory(state);
+    const nextSlides = state.slides.map((s) => {
+      const restored = snap.slidesContent.find((entry) => entry.id === s.id);
+      return restored ? { ...s, content: { ...restored.content } } : s;
+    });
+    set({
+      historyPast: past,
+      historyFuture: [...state.historyFuture, current],
+      elementStyleOverrides: { ...snap.elementStyleOverrides },
+      slides: nextSlides,
+    });
+  },
+
+  redo: () => {
+    const state = get();
+    if (state.historyFuture.length === 0) return;
+    const snap = state.historyFuture[state.historyFuture.length - 1];
+    const future = state.historyFuture.slice(0, -1);
+    const current = snapshotForHistory(state);
+    const nextSlides = state.slides.map((s) => {
+      const restored = snap.slidesContent.find((entry) => entry.id === s.id);
+      return restored ? { ...s, content: { ...restored.content } } : s;
+    });
+    set({
+      historyPast: [...state.historyPast, current],
+      historyFuture: future,
+      elementStyleOverrides: { ...snap.elementStyleOverrides },
+      slides: nextSlides,
+    });
+  },
 
   copilotDrawerOpen: false,
   copilotDrawerPrompt: "",
@@ -899,13 +978,15 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   updateSlideContent: (slideIndex, idx, value) => {
-    const { slides } = get();
-    const next = slides.map((s, i) =>
+    const state = get();
+    const current = state.slides[slideIndex]?.content[idx];
+    if (current === value) return;
+    const next = state.slides.map((s, i) =>
       i === slideIndex
         ? { ...s, content: { ...s.content, [idx]: value } }
         : s,
     );
-    set({ slides: next });
+    set({ ...pushHistoryUpdate(state), slides: next });
   },
 
   // ── Projects ─────────────────────────────────────────────
