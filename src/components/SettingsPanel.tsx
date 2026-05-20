@@ -12,6 +12,7 @@ import { Button } from "./ui/button";
 import { ContentEditor } from "./ContentEditor";
 import { SlideList } from "./SlideList";
 import { ExportButton } from "./ExportButton";
+import { PptxExportButton } from "./PptxExportButton";
 import { ProjectManager } from "./ProjectManager";
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({
@@ -229,7 +230,10 @@ export const SettingsPanel: React.FC = () => {
 
         <div>
           <SectionLabel>Export</SectionLabel>
-          <ExportButton />
+          <div className="flex flex-col gap-2">
+            <ExportButton />
+            <PptxExportButton />
+          </div>
         </div>
 
         <Separator />

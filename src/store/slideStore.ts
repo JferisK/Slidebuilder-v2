@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   ParsedPresentation,
   SlideLayout,
@@ -67,6 +68,7 @@ export interface SlideForgeStore {
   // ── Parsed presentation (driven by active template) ──────
   presentation: ParsedPresentation | null;
   setParsedPresentation: (p: ParsedPresentation) => void;
+  hydrateFromActiveTemplate: () => void;
 
   // ── Active selections ────────────────────────────────────
   activeMasterId: string | null;
@@ -141,7 +143,9 @@ function findLayout(
   return master?.layouts.find((l) => l.id === layoutId);
 }
 
-export const useSlideStore = create<SlideForgeStore>((set, get) => ({
+export const useSlideStore = create<SlideForgeStore>()(
+  persist(
+    (set, get) => ({
   // ── Templates ────────────────────────────────────────────
   templates: [],
   activeTemplateId: null,
@@ -214,6 +218,73 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       slides: initialSlide ? [initialSlide] : [],
       annotations: [],
       annotationsVisible: true,
+      selectedPlaceholderIdx: null,
+    });
+  },
+
+  hydrateFromActiveTemplate: () => {
+    const {
+      activeTemplateId,
+      templates,
+      slides,
+      annotations,
+      activeMasterId,
+      activeSlideIndex,
+    } = get();
+    if (!activeTemplateId) return;
+    const tpl = templates.find((t) => t.id === activeTemplateId);
+    if (!tpl) {
+      set({ activeTemplateId: null });
+      return;
+    }
+    const parsed = tpl.parsed;
+
+    // Drop slides whose master/layout no longer exists in the parsed template.
+    const validSlides = slides.filter((s) =>
+      parsed.masters.some(
+        (m) =>
+          m.id === s.masterId && m.layouts.some((l) => l.id === s.layoutId),
+      ),
+    );
+
+    if (validSlides.length === 0) {
+      // Nothing usable — fall back to a fresh starter slide.
+      const firstMaster = parsed.masters[0];
+      const firstLayout = firstMaster?.layouts[0];
+      const starter: Slide | null =
+        firstMaster && firstLayout
+          ? {
+              id: uid(),
+              masterId: firstMaster.id,
+              layoutId: firstLayout.id,
+              content: {},
+            }
+          : null;
+      set({
+        presentation: parsed,
+        slides: starter ? [starter] : [],
+        activeMasterId: firstMaster?.id ?? null,
+        activeSlideIndex: 0,
+        annotations: [],
+        selectedPlaceholderIdx: null,
+      });
+      return;
+    }
+
+    const masterStillExists =
+      activeMasterId && parsed.masters.some((m) => m.id === activeMasterId);
+    const nextIndex = Math.min(
+      Math.max(0, activeSlideIndex),
+      validSlides.length - 1,
+    );
+    set({
+      presentation: parsed,
+      slides: validSlides,
+      activeMasterId: masterStillExists
+        ? activeMasterId
+        : parsed.masters[0]?.id ?? null,
+      activeSlideIndex: nextIndex,
+      annotations: annotations.filter((a) => a.slideIndex < validSlides.length),
       selectedPlaceholderIdx: null,
     });
   },
@@ -435,12 +506,11 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   // ── Onboarding ───────────────────────────────────────────
+  // Initial value reads the legacy key for backward compatibility; once the
+  // persist middleware rehydrates, the persisted value takes over.
   onboardingDone: localStorage.getItem("slideforge-onboarding") === "done",
 
-  setOnboardingDone: (v) => {
-    localStorage.setItem("slideforge-onboarding", v ? "done" : "");
-    set({ onboardingDone: v });
-  },
+  setOnboardingDone: (v) => set({ onboardingDone: v }),
 
   // ── Toast ────────────────────────────────────────────────
   showToast: (text, kind = "success") => {
@@ -452,7 +522,25 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   dismissToast: () => set({ currentToast: null }),
-}));
+    }),
+    {
+      name: "slideforge-store",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        activeTemplateId: state.activeTemplateId,
+        activeMasterId: state.activeMasterId,
+        activeSlideIndex: state.activeSlideIndex,
+        selectionMode: state.selectionMode,
+        slides: state.slides,
+        annotations: state.annotations,
+        annotationsVisible: state.annotationsVisible,
+        activeProjectId: state.activeProjectId,
+        onboardingDone: state.onboardingDone,
+      }),
+      version: 1,
+    },
+  ),
+);
 
 // ── Helper selectors ───────────────────────────────────────
 export function useActiveMaster(): SlideMaster | undefined {

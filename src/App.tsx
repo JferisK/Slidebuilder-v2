@@ -18,10 +18,15 @@ const App: React.FC = () => {
   );
   const showToast = useSlideStore((s) => s.showToast);
 
-  // Load persisted templates + projects on mount
+  // Load persisted templates + projects on mount, then rehydrate the
+  // working presentation from the persisted activeTemplateId so the user
+  // lands back in the editor (same master/layout/slide/content) after a
+  // reload — no need to re-pick anything.
   React.useEffect(() => {
-    void loadTemplates();
-    void loadProjects();
+    (async () => {
+      await Promise.all([loadTemplates(), loadProjects()]);
+      useSlideStore.getState().hydrateFromActiveTemplate();
+    })();
   }, [loadTemplates, loadProjects]);
 
   // Listen for additional upload events from SettingsPanel
