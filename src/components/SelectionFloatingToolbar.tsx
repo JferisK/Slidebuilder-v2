@@ -1,14 +1,11 @@
 import * as React from "react";
-import { MessageSquare, Send, Sliders, Type } from "lucide-react";
+import { Send, Sliders, Type } from "lucide-react";
 import {
   useActiveLayout,
   useActiveSlide,
   useSlideStore,
 } from "@/store/slideStore";
-import {
-  isContentElementId,
-  parseContentElementId,
-} from "@/lib/contentElementId";
+import { isContentElementId } from "@/lib/contentElementId";
 import { parseElementId } from "@/lib/elementId";
 import { ElementStylePanel } from "./ElementStylePanel";
 import { buildBatchPrompt } from "./CopilotBatchPanel";
@@ -45,8 +42,6 @@ export const SelectionFloatingToolbar: React.FC<
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const openCopilotDrawer = useSlideStore((s) => s.openCopilotDrawer);
   const updateSlideContent = useSlideStore((s) => s.updateSlideContent);
-  const setAnnotationsVisible = useSlideStore((s) => s.setAnnotationsVisible);
-  const annotationsVisible = useSlideStore((s) => s.annotationsVisible);
 
   const [adjustOpen, setAdjustOpen] = React.useState(false);
 
@@ -106,21 +101,12 @@ export const SelectionFloatingToolbar: React.FC<
     }
   };
 
-  const handleComment = () => {
-    if (!annotationsVisible) setAnnotationsVisible(true);
-    // The AnnotationLayer already wires up clicks on empty canvas to create
-    // pins. We just surface a small hint here by relying on existing behaviour:
-    // the user can click an empty area near the element to drop a pin.
-    // No-op for now beyond ensuring the layer is visible.
-  };
-
   const handleSend = () => {
     const prompt = buildBatchPrompt({
       slideId: activeSlide.id,
       slideOrdinal: activeSlideIndex + 1,
       layoutName: activeLayout.name,
       includedElementIds: selectedElementIds,
-      includedAnnotations: [],
       elementStyleOverrides,
       contentIndex,
       placeholders: activeLayout.placeholders,
@@ -150,11 +136,6 @@ export const SelectionFloatingToolbar: React.FC<
         className="flex items-center gap-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-1 shadow-lg"
         style={{ backdropFilter: "blur(6px)" }}
       >
-        <ToolbarBtn
-          label="Kommentar"
-          onClick={handleComment}
-          icon={<MessageSquare size={13} />}
-        />
         <ToolbarBtn
           label="Text bearbeiten"
           onClick={handleText}

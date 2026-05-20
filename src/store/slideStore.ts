@@ -58,23 +58,6 @@ export interface Slide {
   hiddenPlaceholderIdxs?: number[];
 }
 
-export interface AreaRect {
-  x1: number; // 0-1 normalized
-  y1: number;
-  x2: number;
-  y2: number;
-}
-
-export interface Annotation {
-  id: string;
-  slideIndex: number;
-  position: { x: number; y: number };
-  area?: AreaRect;
-  targetPlaceholderIdx?: number;
-  targetPlaceholderType?: string;
-  comment: string;
-}
-
 export interface ContentElementIndexEntry extends ContentElementMeta {}
 
 export type ContentElementIndex = Record<string, ContentElementIndexEntry>;
@@ -206,13 +189,6 @@ export interface SlideForgeStore {
     idx: string,
     value: string,
   ) => void;
-
-  // ── Annotations ──────────────────────────────────────────
-  annotations: Annotation[];
-  annotationsVisible: boolean;
-  addAnnotation: (a: Omit<Annotation, "id">) => void;
-  removeAnnotation: (id: string) => void;
-  setAnnotationsVisible: (v: boolean) => void;
 
   // ── Projects ─────────────────────────────────────────────
   projects: Project[];
@@ -425,7 +401,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       const next = get().templates.filter((t) => t.id !== id);
       set({ templates: next });
       if (get().activeTemplateId === id) {
-        set({ activeTemplateId: null, presentation: null, slides: [], annotations: [] });
+        set({ activeTemplateId: null, presentation: null, slides: [] });
       }
     } catch (err) {
       console.warn("[store] deleteTemplate failed:", err);
@@ -448,8 +424,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   elementStyleOverrides: {},
   canvasZoom: 1,
   slides: [],
-  annotations: [],
-  annotationsVisible: true,
   currentToast: null,
 
   setParsedPresentation: (p) => {
@@ -469,8 +443,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       activeMasterId: firstMaster?.id ?? null,
       activeSlideIndex: 0,
       slides: initialSlide ? [initialSlide] : [],
-      annotations: [],
-      annotationsVisible: true,
       selectedElementIds: [],
       elementStyleOverrides: {},
       canvasZoom: 1,
@@ -714,20 +686,14 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   },
 
   removeSlide: (index) => {
-    const { slides, activeSlideIndex, annotations } = get();
+    const { slides, activeSlideIndex } = get();
     if (slides.length <= 1) return;
     const next = slides.filter((_, i) => i !== index);
-    const nextAnnotations = annotations
-      .filter((a) => a.slideIndex !== index)
-      .map((a) =>
-        a.slideIndex > index ? { ...a, slideIndex: a.slideIndex - 1 } : a,
-      );
     const newActive =
       activeSlideIndex >= next.length ? next.length - 1 : activeSlideIndex;
     set({
       slides: next,
       activeSlideIndex: Math.max(0, newActive),
-      annotations: nextAnnotations,
     });
   },
 
@@ -941,16 +907,6 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     );
     set({ slides: next });
   },
-
-  addAnnotation: (a) =>
-    set({
-      annotations: [...get().annotations, { ...a, id: uid() }],
-    }),
-
-  removeAnnotation: (id) =>
-    set({ annotations: get().annotations.filter((a) => a.id !== id) }),
-
-  setAnnotationsVisible: (v) => set({ annotationsVisible: v }),
 
   // ── Projects ─────────────────────────────────────────────
   projects: [],

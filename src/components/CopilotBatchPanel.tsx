@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MessageSquare, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import {
   useActiveLayout,
   useActiveSlide,
@@ -7,7 +7,6 @@ import {
   type ElementStyleOverrides,
 } from "@/store/slideStore";
 import {
-  isContentElementId,
   parseContentElementId,
   describeContentElement,
 } from "@/lib/contentElementId";
@@ -20,7 +19,6 @@ export const CopilotBatchPanel: React.FC = () => {
   const elementStyleOverrides = useSlideStore(
     (s) => s.elementStyleOverrides,
   );
-  const annotations = useSlideStore((s) => s.annotations);
   const activeSlideIndex = useSlideStore((s) => s.activeSlideIndex);
   const activeSlide = useActiveSlide();
   const activeLayout = useActiveLayout();
@@ -32,9 +30,6 @@ export const CopilotBatchPanel: React.FC = () => {
 
   const [intent, setIntent] = React.useState("");
   const [excludedElementIds, setExcludedElementIds] = React.useState<
-    Set<string>
-  >(new Set());
-  const [excludedAnnotationIds, setExcludedAnnotationIds] = React.useState<
     Set<string>
   >(new Set());
   const [includeOverrides, setIncludeOverrides] = React.useState(true);
@@ -50,17 +45,11 @@ export const CopilotBatchPanel: React.FC = () => {
     });
   }, [selectedElementIds]);
 
-  // Whenever there's nothing selected and no annotations on the slide, clear intent.
-  const slideAnnotations = React.useMemo(
-    () => annotations.filter((a) => a.slideIndex === activeSlideIndex),
-    [annotations, activeSlideIndex],
-  );
-
   React.useEffect(() => {
-    if (selectedElementIds.length === 0 && slideAnnotations.length === 0) {
+    if (selectedElementIds.length === 0) {
       setIntent("");
     }
-  }, [selectedElementIds.length, slideAnnotations.length]);
+  }, [selectedElementIds.length]);
 
   if (!activeSlide || !activeLayout) return null;
 
@@ -70,28 +59,13 @@ export const CopilotBatchPanel: React.FC = () => {
   const includedElementIds = selectedElementIds.filter(
     (id) => !excludedElementIds.has(id),
   );
-  const includedAnnotations = slideAnnotations.filter(
-    (a) => !excludedAnnotationIds.has(a.id),
-  );
   const overrideIds = Object.keys(elementStyleOverrides);
   const overrideCount = overrideIds.length;
 
-  const nothingSelected =
-    selectedElementIds.length === 0 && slideAnnotations.length === 0;
-
-  if (nothingSelected) return null;
+  if (selectedElementIds.length === 0) return null;
 
   const toggleElement = (id: string) => {
     setExcludedElementIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAnnotation = (id: string) => {
-    setExcludedAnnotationIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -105,7 +79,6 @@ export const CopilotBatchPanel: React.FC = () => {
       slideOrdinal,
       layoutName: activeLayout.name,
       includedElementIds,
-      includedAnnotations,
       elementStyleOverrides: includeOverrides ? elementStyleOverrides : {},
       contentIndex,
       placeholders: activeLayout.placeholders,
@@ -121,7 +94,7 @@ export const CopilotBatchPanel: React.FC = () => {
           An Copilot senden
         </div>
         <div className="text-[10px] text-[var(--app-muted)]">
-          {includedElementIds.length} El. · {includedAnnotations.length} Komm.
+          {includedElementIds.length} El.
           {overrideCount > 0 && includeOverrides
             ? ` · ${overrideCount} Edit${overrideCount === 1 ? "" : "s"}`
             : ""}
@@ -179,40 +152,6 @@ export const CopilotBatchPanel: React.FC = () => {
         </Group>
       )}
 
-      {slideAnnotations.length > 0 && (
-        <Group label="Kommentare auf dieser Folie">
-          <div className="flex flex-col gap-1">
-            {slideAnnotations.map((a) => {
-              const checked = !excludedAnnotationIds.has(a.id);
-              const preview =
-                a.comment.length > 60
-                  ? `${a.comment.slice(0, 60)}…`
-                  : a.comment;
-              return (
-                <label
-                  key={a.id}
-                  className="flex cursor-pointer items-start gap-2 text-[11px] text-[var(--app-text)]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleAnnotation(a.id)}
-                    className="mt-0.5 h-3 w-3 accent-[var(--app-accent)]"
-                  />
-                  <span className="flex min-w-0 items-start gap-1">
-                    <MessageSquare
-                      size={10}
-                      className="mt-0.5 shrink-0 text-[var(--app-muted)]"
-                    />
-                    <span className="truncate">{preview}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </Group>
-      )}
-
       {overrideCount > 0 && (
         <Group label="Lokale Stil-Anpassungen">
           <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[var(--app-text)]">
@@ -259,7 +198,6 @@ export const CopilotBatchPanel: React.FC = () => {
             onClick={handleSend}
             disabled={
               includedElementIds.length === 0 &&
-              includedAnnotations.length === 0 &&
               !(includeOverrides && overrideCount > 0)
             }
           >
@@ -288,12 +226,6 @@ interface BuildBatchPromptArgs {
   slideOrdinal: number;
   layoutName: string;
   includedElementIds: string[];
-  includedAnnotations: Array<{
-    id: string;
-    comment: string;
-    targetPlaceholderIdx?: number;
-    targetPlaceholderType?: string;
-  }>;
   elementStyleOverrides: ElementStyleOverrides;
   contentIndex: Record<string, { type: string; textContent: string }> | undefined;
   placeholders: Array<{ idx: number; type: string }>;
@@ -305,7 +237,6 @@ export function buildBatchPrompt({
   slideOrdinal,
   layoutName,
   includedElementIds,
-  includedAnnotations,
   elementStyleOverrides,
   contentIndex,
   placeholders,
@@ -372,17 +303,6 @@ export function buildBatchPrompt({
       for (const [k, v] of Object.entries(ov)) {
         lines.push(`     - ${k}: ${v}`);
       }
-    });
-    lines.push("");
-  }
-
-  if (includedAnnotations.length > 0) {
-    lines.push("## Kommentare");
-    includedAnnotations.forEach((a, i) => {
-      const targetInfo = a.targetPlaceholderIdx
-        ? ` (an ${a.targetPlaceholderType ?? "placeholder"}#${a.targetPlaceholderIdx})`
-        : "";
-      lines.push(`  ${i + 1}.${targetInfo} "${a.comment}"`);
     });
     lines.push("");
   }
