@@ -550,12 +550,12 @@ async function parseLayout(
 
 // ---------- Master parsing --------------------------------------------------
 
-interface MasterRelEntry {
+export interface MasterRelEntry {
   target: string;
   rid: string;
 }
 
-async function parseMasterRels(
+export async function parseMasterRels(
   zip: JSZip,
   masterPath: string,
 ): Promise<MasterRelEntry[]> {
@@ -618,7 +618,7 @@ async function resolveMasterTheme(
   return parseThemeFromDoc(doc);
 }
 
-function resolveZipPath(basePath: string, relPath: string): string {
+export function resolveZipPath(basePath: string, relPath: string): string {
   if (relPath.startsWith("/")) return relPath.replace(/^\/+/, "");
   const baseParts = basePath.split("/");
   baseParts.pop();
@@ -628,6 +628,24 @@ function resolveZipPath(basePath: string, relPath: string): string {
     else if (part !== ".") baseParts.push(part);
   }
   return baseParts.join("/");
+}
+
+/**
+ * Resolve a layout's zip path given a layoutId of the form `${masterPath}::${rid}`.
+ * (See parseMaster — that is the id format assigned to SlideLayout.id.)
+ */
+export async function resolveLayoutPath(
+  zip: JSZip,
+  layoutId: string,
+): Promise<{ masterPath: string; layoutPath: string } | null> {
+  const sep = layoutId.indexOf("::");
+  if (sep < 0) return null;
+  const masterPath = layoutId.slice(0, sep);
+  const rid = layoutId.slice(sep + 2);
+  const rels = await parseMasterRels(zip, masterPath);
+  const found = rels.find((r) => r.rid === rid);
+  if (!found) return null;
+  return { masterPath, layoutPath: found.target };
 }
 
 async function parseMaster(
