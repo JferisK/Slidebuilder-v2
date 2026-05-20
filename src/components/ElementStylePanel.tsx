@@ -284,7 +284,15 @@ export const ElementStylePanel: React.FC<ElementStylePanelProps> = ({
     "textAlign",
   );
 
-  const themeSwatches = collectThemeSwatches(activeMaster?.theme.cssVars);
+  const palette = activeMaster?.theme.palette ?? [];
+  const themeCssVars = activeMaster?.theme.cssVars;
+  const basePalette = palette.filter((entry) =>
+    ["lt1", "dk1", "lt2", "dk2"].includes(entry.key),
+  );
+  const accentPalette = palette.filter((entry) =>
+    entry.key.startsWith("accent"),
+  );
+  const coreSwatches = collectCoreSwatches(themeCssVars);
 
   const handlePatch = (patch: Partial<ElementStyleOverride>) => {
     setElementStyleForMany(selectedElementIds, patch);
@@ -315,10 +323,12 @@ export const ElementStylePanel: React.FC<ElementStylePanelProps> = ({
 
       {anyTextLike && (
         <Section label="Farbe">
-          <ColorRow
+          <PowerPointPalette
             value={color.value}
             mixed={color.mixed}
-            swatches={themeSwatches}
+            coreSwatches={coreSwatches}
+            basePalette={basePalette}
+            accentPalette={accentPalette}
             onChange={(v) => handlePatch({ color: v ?? undefined })}
             onClear={() => handlePatch({ color: undefined })}
             slide={activeSlideIndex}
@@ -328,10 +338,12 @@ export const ElementStylePanel: React.FC<ElementStylePanelProps> = ({
 
       {anyContainerLike && (
         <Section label="Hintergrund">
-          <ColorRow
+          <PowerPointPalette
             value={bg.value}
             mixed={bg.mixed}
-            swatches={themeSwatches}
+            coreSwatches={coreSwatches}
+            basePalette={basePalette}
+            accentPalette={accentPalette}
             onChange={(v) => handlePatch({ backgroundColor: v ?? undefined })}
             onClear={() => handlePatch({ backgroundColor: undefined })}
             slide={activeSlideIndex}
@@ -493,108 +505,28 @@ const NumericSlider: React.FC<{
   );
 };
 
-const ColorRow: React.FC<{
-  value: string | null;
-  mixed: boolean;
-  swatches: ThemeSwatch[];
-  onChange: (hex: string | null) => void;
-  onClear: () => void;
-  slide: number;
-  allowTransparent?: boolean;
-}> = ({ value, mixed, swatches, onChange, onClear, slide, allowTransparent }) => {
-  const colorInputId = `color-input-${slide}`;
-  return (
-    <div>
-      <div className="mb-2 grid grid-cols-6 gap-1.5">
-        {swatches.map((s) => {
-          const isActive = !mixed && value && sameColor(value, s.color);
-          return (
-            <button
-              key={s.key}
-              type="button"
-              title={`${s.label} · ${s.color}`}
-              onClick={() => onChange(s.color)}
-              className="h-6 w-6 rounded border"
-              style={{
-                background: s.color,
-                borderColor: isActive
-                  ? "var(--app-accent)"
-                  : "var(--app-border)",
-                boxShadow: isActive
-                  ? "0 0 0 2px var(--app-accent)"
-                  : undefined,
-              }}
-            />
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor={colorInputId}
-          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-[var(--app-border)]"
-          style={{ background: !mixed && value ? value : "transparent" }}
-          title="Eigene Farbe wählen"
-        >
-          <input
-            id={colorInputId}
-            type="color"
-            value={!mixed && value && value.startsWith("#") ? value : "#000000"}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-0 w-0 opacity-0"
-          />
-        </label>
-        <Input
-          value={mixed ? "" : value ?? ""}
-          placeholder={mixed ? "—" : "#hex"}
-          className="flex-1"
-          onChange={(e) => {
-            const v = e.target.value.trim();
-            if (v === "") onChange(null);
-            else onChange(v);
-          }}
-        />
-        {allowTransparent && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onClear}
-            title="Transparent / kein Hintergrund"
-          >
-            ✕
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-interface ThemeSwatch {
+interface CoreSwatch {
   key: string;
   label: string;
   color: string;
 }
 
-function collectThemeSwatches(
+function collectCoreSwatches(
   cssVars: Record<string, string> | undefined,
-): ThemeSwatch[] {
+): CoreSwatch[] {
   if (!cssVars) return [];
-  const out: ThemeSwatch[] = [];
-  const coreOrder: Array<[string, string]> = [
+  const order: Array<[string, string]> = [
     ["--slide-primary", "Primär"],
-    ["--slide-accent", "Akzent"],
     ["--slide-secondary", "Sekundär"],
+    ["--slide-accent", "Akzent"],
     ["--slide-text", "Text"],
     ["--slide-text-muted", "Text gedämpft"],
     ["--slide-bg", "Hintergrund"],
   ];
-  for (const [key, label] of coreOrder) {
+  const out: CoreSwatch[] = [];
+  for (const [key, label] of order) {
     const c = cssVars[key];
     if (c) out.push({ key, label, color: c });
-  }
-  for (let i = 1; i <= 6; i++) {
-    const key = `--ppt-accent${i}`;
-    const c = cssVars[key];
-    if (c) out.push({ key, label: `Akzent ${i}`, color: c });
   }
   return out;
 }
@@ -602,3 +534,178 @@ function collectThemeSwatches(
 function sameColor(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
+
+const PaletteCell: React.FC<{
+  color: string;
+  title: string;
+  isActive: boolean;
+  onClick: () => void;
+}> = ({ color, title, isActive, onClick }) => (
+  <button
+    type="button"
+    title={title}
+    onClick={onClick}
+    className="block h-[18px] w-full rounded-sm border"
+    style={{
+      background: color,
+      borderColor: isActive ? "var(--app-accent)" : "var(--app-border)",
+      boxShadow: isActive ? "0 0 0 2px var(--app-accent)" : undefined,
+    }}
+  />
+);
+
+const PaletteColumn: React.FC<{
+  family: import("@/parser/pptxParser").ThemeColorFamily;
+  activeColor: string | null;
+  mixed: boolean;
+  onChange: (hex: string) => void;
+}> = ({ family, activeColor, mixed, onChange }) => (
+  <div className="flex flex-col gap-0.5">
+    <PaletteCell
+      color={family.color}
+      title={`${family.label} · ${family.color}`}
+      isActive={!mixed && !!activeColor && sameColor(activeColor, family.color)}
+      onClick={() => onChange(family.color)}
+    />
+    <div className="h-px bg-[var(--app-border)]" />
+    {family.variants.map((variant) => (
+      <PaletteCell
+        key={`${family.key}-${variant.label}`}
+        color={variant.color}
+        title={`${family.label} · ${variant.label} · ${variant.color}`}
+        isActive={
+          !mixed && !!activeColor && sameColor(activeColor, variant.color)
+        }
+        onClick={() => onChange(variant.color)}
+      />
+    ))}
+  </div>
+);
+
+const PowerPointPalette: React.FC<{
+  value: string | null;
+  mixed: boolean;
+  coreSwatches: CoreSwatch[];
+  basePalette: import("@/parser/pptxParser").ThemeColorFamily[];
+  accentPalette: import("@/parser/pptxParser").ThemeColorFamily[];
+  onChange: (hex: string | null) => void;
+  onClear: () => void;
+  slide: number;
+  allowTransparent?: boolean;
+}> = ({
+  value,
+  mixed,
+  coreSwatches,
+  basePalette,
+  accentPalette,
+  onChange,
+  onClear,
+  slide,
+  allowTransparent,
+}) => {
+  const colorInputId = `color-input-${slide}`;
+  return (
+    <div className="flex flex-col gap-2">
+      {coreSwatches.length > 0 && (
+        <div>
+          <div className="mb-1 text-[9px] uppercase tracking-wider text-[var(--app-muted)]">
+            Kernfarben
+          </div>
+          <div className="grid grid-cols-6 gap-1">
+            {coreSwatches.map((s) => (
+              <PaletteCell
+                key={s.key}
+                color={s.color}
+                title={`${s.label} · ${s.color}`}
+                isActive={!mixed && !!value && sameColor(value, s.color)}
+                onClick={() => onChange(s.color)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {basePalette.length > 0 && (
+        <div>
+          <div className="mb-1 text-[9px] uppercase tracking-wider text-[var(--app-muted)]">
+            Theme-Basis
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {basePalette.map((family) => (
+              <PaletteColumn
+                key={family.key}
+                family={family}
+                activeColor={value}
+                mixed={mixed}
+                onChange={onChange}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {accentPalette.length > 0 && (
+        <div>
+          <div className="mb-1 text-[9px] uppercase tracking-wider text-[var(--app-muted)]">
+            Akzentfarben
+          </div>
+          <div className="grid grid-cols-6 gap-1">
+            {accentPalette.map((family) => (
+              <PaletteColumn
+                key={family.key}
+                family={family}
+                activeColor={value}
+                mixed={mixed}
+                onChange={onChange}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-1 text-[9px] uppercase tracking-wider text-[var(--app-muted)]">
+          Eigene Farbe
+        </div>
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor={colorInputId}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-[var(--app-border)]"
+            style={{ background: !mixed && value ? value : "transparent" }}
+            title="Eigene Farbe wählen"
+          >
+            <input
+              id={colorInputId}
+              type="color"
+              value={
+                !mixed && value && value.startsWith("#") ? value : "#000000"
+              }
+              onChange={(e) => onChange(e.target.value)}
+              className="h-0 w-0 opacity-0"
+            />
+          </label>
+          <Input
+            value={mixed ? "" : value ?? ""}
+            placeholder={mixed ? "—" : "#hex"}
+            className="flex-1"
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              if (v === "") onChange(null);
+              else onChange(v);
+            }}
+          />
+          {allowTransparent && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onClear}
+              title="Transparent / kein Hintergrund"
+            >
+              ✕
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
