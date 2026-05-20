@@ -22,6 +22,7 @@ import { Select } from "./ui/select";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { ExportButton } from "./ExportButton";
+import { PptxExportButton } from "./PptxExportButton";
 import { ProjectManager } from "./ProjectManager";
 import { MasterPicker } from "./MasterPicker";
 import { ElementStylePanel } from "./ElementStylePanel";
@@ -778,6 +779,7 @@ export const SettingsPanel: React.FC = () => {
         <SectionLabel>Export</SectionLabel>
         <div className="flex flex-col gap-2">
           <ExportButton />
+          <PptxExportButton />
           <Button
             variant="ghost"
             size="sm"
