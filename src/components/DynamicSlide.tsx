@@ -20,7 +20,49 @@ import {
   useElementInstrumentation,
   type ContentElementMeta,
 } from "@/hooks/useElementInstrumentation";
-import { useSlideStore } from "@/store/slideStore";
+import {
+  useSlideStore,
+  ELEMENT_STYLE_KEYS,
+  type ElementStyleOverride,
+} from "@/store/slideStore";
+
+const STYLE_PROP_NAMES: Record<keyof ElementStyleOverride, string> = {
+  color: "color",
+  backgroundColor: "background-color",
+  fontSize: "font-size",
+  fontWeight: "font-weight",
+  borderRadius: "border-radius",
+  textAlign: "text-align",
+};
+
+function applyOverrideToElement(
+  el: HTMLElement,
+  override: ElementStyleOverride | undefined,
+) {
+  const prevManaged = el.dataset.styleManaged;
+  if (prevManaged) {
+    for (const propName of prevManaged.split(",")) {
+      if (propName) el.style.removeProperty(propName);
+    }
+  }
+  if (!override) {
+    if (prevManaged) delete el.dataset.styleManaged;
+    return;
+  }
+  const applied: string[] = [];
+  for (const key of ELEMENT_STYLE_KEYS) {
+    const value = override[key];
+    if (value === undefined || value === null || value === "") continue;
+    const propName = STYLE_PROP_NAMES[key];
+    el.style.setProperty(propName, String(value));
+    applied.push(propName);
+  }
+  if (applied.length > 0) {
+    el.dataset.styleManaged = applied.join(",");
+  } else if (prevManaged) {
+    delete el.dataset.styleManaged;
+  }
+}
 
 const PlaceholderSlot: React.FC<{
   slideId: string | undefined;
@@ -36,6 +78,10 @@ const PlaceholderSlot: React.FC<{
   );
   const clearContentElementsForPlaceholder = useSlideStore(
     (s) => s.clearContentElementsForPlaceholder,
+  );
+  const elementStyleOverrides = useSlideStore((s) => s.elementStyleOverrides);
+  const contentIndexForSlide = useSlideStore((s) =>
+    slideId ? s.contentElementIndex[slideId] : undefined,
   );
 
   const onEntries = React.useCallback(
@@ -59,6 +105,17 @@ const PlaceholderSlot: React.FC<{
     onEntries,
     onUnmount,
   });
+
+  React.useEffect(() => {
+    const root = ref.current;
+    if (!root || disabled) return;
+    const nodes = root.querySelectorAll<HTMLElement>("[data-content-id]");
+    nodes.forEach((el) => {
+      const id = el.getAttribute("data-content-id");
+      if (!id) return;
+      applyOverrideToElement(el, elementStyleOverrides[id]);
+    });
+  }, [elementStyleOverrides, contentIndexForSlide, disabled]);
 
   return (
     <div ref={ref} style={style} {...extraProps}>
@@ -220,6 +277,19 @@ function renderPlaceholderContent(
   }
 }
 
+function overrideToCssProperties(
+  override: ElementStyleOverride | undefined,
+): React.CSSProperties | undefined {
+  if (!override) return undefined;
+  const out: React.CSSProperties = {};
+  for (const key of ELEMENT_STYLE_KEYS) {
+    const value = override[key];
+    if (value === undefined || value === null || value === "") continue;
+    (out as Record<string, unknown>)[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   layout,
   theme,
@@ -236,6 +306,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
   const themeStyle = theme.cssVars as unknown as React.CSSProperties;
   const selectedList = selectedElementIds ?? [];
   const renderSize = getRenderSlideSize(slideSize);
+  const elementStyleOverrides = useSlideStore((s) => s.elementStyleOverrides);
   return (
     <div
       data-slide-root="true"
@@ -253,6 +324,9 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
         if (hiddenPlaceholderIdxs?.has(placeholder.idx)) return null;
         const elementId = slideId
           ? makeElementId(slideId, placeholder.idx)
+          : undefined;
+        const placeholderOverrideStyle = elementId
+          ? overrideToCssProperties(elementStyleOverrides[elementId])
           : undefined;
         const selectedContentElementIds = slideId
           ? selectedList.filter((id) => {
@@ -314,6 +388,7 @@ export const DynamicSlide: React.FC<DynamicSlideProps> = ({
               justifyContent: "flex-start",
               overflow: "hidden",
               ...outlineStyle,
+              ...placeholderOverrideStyle,
             }}
             extraProps={{
               "data-placeholder-idx": placeholder.idx,

@@ -14,6 +14,7 @@ import { ZoomToolbar } from "./components/ZoomToolbar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Toast } from "./components/Toast";
 import { OnboardingScreen } from "./components/OnboardingScreen";
+import { GlobalCopilotDrawer } from "./components/GlobalCopilotDrawer";
 import { useSlideStore, type StoredTemplate } from "./store/slideStore";
 import { getCodeSlide } from "./slides/registry";
 
@@ -248,6 +249,7 @@ const App: React.FC = () => {
         <SettingsPanel />
       </div>
       <Toast />
+      <GlobalCopilotDrawer />
     </div>
   );
 };

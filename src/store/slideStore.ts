@@ -79,6 +79,26 @@ export interface ContentElementIndexEntry extends ContentElementMeta {}
 
 export type ContentElementIndex = Record<string, ContentElementIndexEntry>;
 
+export interface ElementStyleOverride {
+  color?: string;
+  backgroundColor?: string;
+  fontSize?: string;
+  fontWeight?: number;
+  borderRadius?: string;
+  textAlign?: "left" | "center" | "right";
+}
+
+export type ElementStyleOverrides = Record<string, ElementStyleOverride>;
+
+export const ELEMENT_STYLE_KEYS: ReadonlyArray<keyof ElementStyleOverride> = [
+  "color",
+  "backgroundColor",
+  "fontSize",
+  "fontWeight",
+  "borderRadius",
+  "textAlign",
+];
+
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 4;
 export const ZOOM_STEP = 0.1;
@@ -134,6 +154,28 @@ export interface SlideForgeStore {
     placeholderIdx: number,
   ) => void;
   clearContentElementsForSlide: (slideId: string) => void;
+
+  // ── Element style overrides (in-memory live preview) ─────
+  // TODO(persistence): keys include slideId (re-generated per session),
+  // so survival across reloads requires keying by master/layout/placeholder.
+  elementStyleOverrides: ElementStyleOverrides;
+  setElementStyle: (
+    id: string,
+    patch: Partial<ElementStyleOverride>,
+  ) => void;
+  setElementStyleForMany: (
+    ids: string[],
+    patch: Partial<ElementStyleOverride>,
+  ) => void;
+  clearElementStyle: (id: string) => void;
+  clearElementStylesForMany: (ids: string[]) => void;
+  clearAllElementStyles: () => void;
+
+  // ── Copilot drawer (shared open state) ───────────────────
+  copilotDrawerOpen: boolean;
+  copilotDrawerPrompt: string;
+  openCopilotDrawer: (prompt: string) => void;
+  closeCopilotDrawer: () => void;
 
   // ── Canvas zoom ──────────────────────────────────────────
   canvasZoom: number;
@@ -403,6 +445,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
   activeSlideIndex: 0,
   selectedElementIds: [],
   contentElementIndex: {},
+  elementStyleOverrides: {},
   canvasZoom: 1,
   slides: [],
   annotations: [],
@@ -429,6 +472,7 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
       annotations: [],
       annotationsVisible: true,
       selectedElementIds: [],
+      elementStyleOverrides: {},
       canvasZoom: 1,
     });
   },
@@ -531,6 +575,85 @@ export const useSlideStore = create<SlideForgeStore>((set, get) => ({
     delete next[slideId];
     set({ contentElementIndex: next });
   },
+
+  setElementStyle: (id, patch) => {
+    const current = get().elementStyleOverrides;
+    const existing = current[id] ?? {};
+    const merged: ElementStyleOverride = { ...existing };
+    for (const k of ELEMENT_STYLE_KEYS) {
+      if (k in patch) {
+        const v = patch[k];
+        if (v === undefined || v === null || v === "") {
+          delete (merged as Record<string, unknown>)[k];
+        } else {
+          (merged as Record<string, unknown>)[k] = v;
+        }
+      }
+    }
+    const next = { ...current };
+    if (Object.keys(merged).length === 0) {
+      delete next[id];
+    } else {
+      next[id] = merged;
+    }
+    set({ elementStyleOverrides: next });
+  },
+
+  setElementStyleForMany: (ids, patch) => {
+    if (ids.length === 0) return;
+    const current = get().elementStyleOverrides;
+    const next = { ...current };
+    for (const id of ids) {
+      const existing = next[id] ?? {};
+      const merged: ElementStyleOverride = { ...existing };
+      for (const k of ELEMENT_STYLE_KEYS) {
+        if (k in patch) {
+          const v = patch[k];
+          if (v === undefined || v === null || v === "") {
+            delete (merged as Record<string, unknown>)[k];
+          } else {
+            (merged as Record<string, unknown>)[k] = v;
+          }
+        }
+      }
+      if (Object.keys(merged).length === 0) {
+        delete next[id];
+      } else {
+        next[id] = merged;
+      }
+    }
+    set({ elementStyleOverrides: next });
+  },
+
+  clearElementStyle: (id) => {
+    const current = get().elementStyleOverrides;
+    if (!(id in current)) return;
+    const next = { ...current };
+    delete next[id];
+    set({ elementStyleOverrides: next });
+  },
+
+  clearElementStylesForMany: (ids) => {
+    if (ids.length === 0) return;
+    const current = get().elementStyleOverrides;
+    let changed = false;
+    const next = { ...current };
+    for (const id of ids) {
+      if (id in next) {
+        delete next[id];
+        changed = true;
+      }
+    }
+    if (changed) set({ elementStyleOverrides: next });
+  },
+
+  clearAllElementStyles: () => set({ elementStyleOverrides: {} }),
+
+  copilotDrawerOpen: false,
+  copilotDrawerPrompt: "",
+  openCopilotDrawer: (prompt) =>
+    set({ copilotDrawerOpen: true, copilotDrawerPrompt: prompt }),
+  closeCopilotDrawer: () => set({ copilotDrawerOpen: false }),
 
   setCanvasZoom: (z) =>
     set({ canvasZoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) }),

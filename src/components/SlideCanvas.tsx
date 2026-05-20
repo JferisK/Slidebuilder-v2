@@ -7,6 +7,7 @@ import {
 } from "@/store/slideStore";
 import { DynamicSlide } from "./DynamicSlide";
 import { AnnotationLayer } from "./AnnotationLayer";
+import { SelectionFloatingToolbar } from "./SelectionFloatingToolbar";
 import { getCodeSlide } from "@/slides/registry";
 import { getRenderSlideSize } from "@/lib/slideSize";
 
@@ -173,6 +174,11 @@ export const SlideCanvas: React.FC = () => {
                 activeMaster.theme.cssVars as unknown as Record<string, string>
               }
               brandGuidePath={brandGuidePath}
+            />
+            <SelectionFloatingToolbar
+              scale={effectiveScale}
+              slideWidth={SLIDE_W}
+              slideHeight={SLIDE_H}
             />
           </div>
         </div>
