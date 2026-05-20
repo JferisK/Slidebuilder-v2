@@ -1,6 +1,9 @@
 ---
-mode: agent
+name: Create Brand Guide
 description: Create or update the repo Markdown Brand Guide for the active SlideForge PPTX master from copied Template Context.
+argument-hint: Paste the Template Context copied from SlideForge SettingsPanel
+agent: agent
+tools: [read, search, edit]
 ---
 
 # /create-brand-guide

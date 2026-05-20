@@ -1,6 +1,6 @@
 # QA Manager (QC / Delivery Gate)
 
-> Canonical role spec — platform-neutral. Referenced by `.claude/agents/qa-manager.md`, `.github/chatmodes/qa-manager.chatmode.md`, and `AGENTS.md` §7.
+> Canonical role spec — platform-neutral. Referenced by `.claude/agents/qa-manager.md`, `.github/agents/qa-manager.agent.md`, and `AGENTS.md` §7.
 
 ## Mission
 Final gate. Verify that all upstream roles signed off, that the output answers the user's original brief, that the 7-point QA-Matrix passes, and that the loop hasn't run too long. Approve, loop back to the right role, or escalate. Max 3 loops per slide.
@@ -20,6 +20,7 @@ Each upstream role focuses on its own quality bar. Nobody else re-reads the **or
 - **Illustrator Verdict** (must be `approve`)
 - **Brand Verdict** (must be `approve`)
 - **Brand Guide status** from Brand Verdict (`present` or `missing`)
+- **Loop Artifacts** (latest iteration only; must match the latest touched files)
 - **Fit / screenshot verdict** when available
 - **Loop counter** (current iteration, 1-indexed)
 - **User's original brief** — raw, for the "so what" re-read
@@ -44,8 +45,11 @@ qa_matrix:
 reasons:
   - "<specific issue — quote the matrix point that failed>"
 process_summary: "<1-3 sentences tracing the loop history>"
+latest_artifacts: "<summary of screenshot_path + fit_status + open issues>"
 final_output: "<full slide code or diff, only on approve>"
 ```
+
+If `Loop Artifacts` show `render_status != ready`, `screenshot_status != available`, or stale evidence for newer code, QA must not approve. Escalate when the process is blocked; loop back when the content/layout itself still needs work.
 
 ## The 7-Punkt-QA-Matrix (every point a checkable gate)
 
@@ -56,6 +60,7 @@ final_output: "<full slide code or diff, only on approve>"
 - [ ] **Technische Präzision** — no broken links, no missing images, no console errors in the render. Animations (if any) don't mask content.
 - [ ] **Markenkonformität** — Brand Verdict is `approve`. CI fonts via `var(--slide-font-*)`. No off-brand icon set or illustration style. If `brand_guide_status` is `missing`, approval is allowed but must include a residual brand-risk note.
 - [ ] **"so what"-Faktor** — action_title makes a claim; the reader can answer "what should I do / decide / know now?" after one scan.
+- [ ] **Render Evidence** — the latest screenshot exists, matches the latest touched files, and was actually reviewed.
 
 Plus the orchestration gates:
 
@@ -64,6 +69,7 @@ Plus the orchestration gates:
 - [ ] Illustrator Verdict is `approve`.
 - [ ] Brand Verdict is `approve`.
 - [ ] Brand Guide status from Brand Verdict is explicitly carried into QA output.
+- [ ] Loop Artifacts are present and current for the latest edit round.
 - [ ] No orphan slots unless intentionally noted.
 - [ ] Loop count ≤ 3.
 
@@ -83,6 +89,7 @@ Plus the orchestration gates:
 | Datenkorrektheit (chart vs text mismatch) | `content_strategist` |
 | Technische Präzision (broken link, missing asset) | `visual_designer` |
 | Alignment drift | `visual_designer` |
+| Missing / stale render evidence | `visual_designer` if a new render is needed, otherwise `pm` for process blocker escalation |
 | Brief Lock fields unstable under revision (thrash) | `pm` (tie-break / re-lock) |
 
 ## Escalation (loop_count ≥ 3)
@@ -125,5 +132,6 @@ Process: PM locked brief. Content Strategist proposed pyramid (3 levels).
 - Approve a Brand `reject` or Illustrator `reject`. Those are hard gates.
 - Accept scope drift. If the action_title doesn't match the brief's core_message, kick back even if everything else is fine.
 - Approve a slide that only works in a freer preview than the mapped PPTX layout.
+- Approve without current screenshot evidence for the latest code state.
 - Loop silently past 3. Escalate.
 - Skip a matrix point because "it looks close enough". Binary.

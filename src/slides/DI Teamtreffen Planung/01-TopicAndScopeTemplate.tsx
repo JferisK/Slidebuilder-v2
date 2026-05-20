@@ -5,56 +5,54 @@ import { CanvasFrame, PromptCard, PromptList, TemplateTitle } from "./_shared";
 const TitleSlot: React.FC = () => (
   <TemplateTitle
     eyebrow="DI Teamtreffen Planung"
-    title="Update-Template 01 · Thema und Scope"
-    subtitle="Leere Struktur fuer die erste Update-Folie: Thema benennen, Einordnung geben und Scope sauber begrenzen. Hier liegen die BMC-Dimensionen Kundensegmente und Nutzenversprechen."
-    badges={["Pflichtfolie", "BMC 1-2", "interner Update-Stil"]}
+    title="Update-Rahmen 01 · Thema, Nutzen und Fokus"
+    subtitle="Der Einstieg soll schnell verstaendlich machen, worum es bei der Solution geht, fuer wen sie relevant ist und wo ihr den Fokus fuer dieses Update setzt."
+    badges={["Update-Rahmen", "Einstieg", "frei gestaltbar"]}
   />
 );
 
 const BodySlot: React.FC = () => (
-  <CanvasFrame className="grid-cols-[1.25fr_0.75fr] grid-rows-[1fr_auto]">
+  <CanvasFrame className="grid-cols-[1.3fr_0.7fr] grid-rows-[1fr_auto]">
     <PromptCard
-      label="Leitfrage"
-      prompt="Wie heisst die Solution, welches Nutzenversprechen verfolgt sie und fuer welche Kundensegmente ist sie gedacht?"
-      hint="Hier spaeter den Solution-Namen, die Kurzbeschreibung, das Nutzenversprechen und das wichtigste Kundensegment platzieren."
+      label="Kernaussage"
+      prompt="Wie wollt ihr die Solution in diesem Update rahmen, sodass Thema, Nutzen und Fokus in wenigen Momenten greifbar werden?"
+      hint="Zum Beispiel ueber eine kurze Kernaussage, ein Bild des Einsatzkontexts oder eine knappe Einordnung, fuer wen die Loesung gerade besonders relevant ist."
       className="row-span-2"
+      tone="accent"
     />
     <PromptList
-      title="Pflichtfelder"
+      title="Orientierung fuer die Folie"
       items={[
-        "Welches Kundensegment oder welche Stakeholder-Gruppe steht im Fokus?",
-        "Welches konkrete Nutzenversprechen liefert die Solution fuer dieses Segment?",
-        "Welche Scope-Grenze ist wichtig, damit das Nutzenversprechen glaubwuerdig bleibt?",
+        "Welches Umfeld, Segment oder welche Stakeholder-Gruppe soll diese Solution vor allem erreichen?",
+        "Welcher konkrete Nutzen oder welches Versprechen soll nach eurem Update klar im Raum stehen?",
+        "Welche Fokussierung hilft, damit die Folie nicht alles auf einmal erklaeren muss?",
       ]}
       accent
     />
-    <PromptList
-      title="Optionale Stuetze"
-      items={[
-        "Welche weiteren Segmente sind spaeter denkbar, aber noch nicht im Fokus?",
-        "Wie laesst sich das Nutzenversprechen intern in einem Satz verkaufen?",
-        "Welche offene Scope-Frage sollte sichtbar bleiben?",
-      ]}
+    <PromptCard
+      label="Bewusste Schaerfe"
+      prompt="Welche Anschlussidee, offene Frage oder Grenze darf sichtbar bleiben, damit die Folie fokussiert wirkt statt ueberladen?"
+      hint="Eine gute Auftaktfolie oeffnet die Diskussion, ohne jeden Nebenstrang schon mitzunehmen."
     />
   </CanvasFrame>
 );
 
 const TopicAndScopeTemplate: CodeSlide = {
   id: "ditp-01-topic-scope-template",
-  name: "01 · Update-Template: Thema und Scope",
+  name: "01 · Update-Rahmen: Thema, Nutzen und Fokus",
   description:
-    "Leere Auftaktfolie fuer interne Solution-Updates mit Fokus auf Thema, Kurzbeschreibung und klarer Scope-Abgrenzung.",
+    "Offene Auftaktfolie fuer interne Solution-Updates mit Fokus auf Thema, Nutzenversprechen und klarer Schwerpunktsetzung.",
   slots: [
     {
       key: "title",
       label: "Titel",
-      description: "Titelband mit Einordnung des Update-Templates.",
+      description: "Titelband mit Einordnung des Update-Rahmens.",
       Component: TitleSlot,
     },
     {
       key: "content",
       label: "Inhalt",
-      description: "Prompt-Flachen fuer Thema, Scope und optionale Einordnung.",
+      description: "Leitflaechen fuer Thema, Nutzen und bewusste Fokussierung.",
       Component: BodySlot,
     },
   ],

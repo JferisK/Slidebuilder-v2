@@ -1,6 +1,6 @@
 # AGENTS.md — Slidebuilder-v2 (SlideForge)
 
-> **Read this first.** Canonical project conventions for **any** AI agent or developer working on this repo. Claude Code, OpenAI Codex, GitHub Copilot — all three honor this file. Platform-specific pointers live in `CLAUDE.md` and `.github/copilot-instructions.md` but defer here for the substance.
+> **Read this first.** Canonical project conventions for **any** AI agent or developer working on this repo. Claude Code, OpenAI Codex, GitHub Copilot — all three honor this file. Platform-specific pointers may exist, but this file is the single source of truth for project behavior.
 
 ---
 
@@ -221,7 +221,7 @@ Adapters are thin — they set platform-specific frontmatter (tools, model, desc
 | Platform | Roles | Skills | Orchestrator |
 |---|---|---|---|
 | **Claude Code** | `.claude/agents/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.md` | `.claude/skills/{create-slide,create-brand-guide,load-template-context,validate-against-theme}/SKILL.md` | `.claude/commands/create-slide.md` + `.claude/commands/create-brand-guide.md` |
-| **GitHub Copilot** | `.github/chatmodes/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.chatmode.md` | — (prompt files cover the same surface) | `.github/prompts/{create-slide,create-brand-guide,load-template-context,validate-against-theme}.prompt.md` |
+| **GitHub Copilot** | `.github/agents/{project-manager,content-strategist,visual-designer,illustrator,brand-guardian,qa-manager}.agent.md` | — (prompt files cover the same surface) | `.github/agents/slide-orchestrator.agent.md` + `.github/prompts/{create-slide,create-brand-guide,load-template-context,validate-against-theme}.prompt.md` |
 | **OpenAI Codex** | Reads `AGENTS.md` + `docs/roles/*.md` + `docs/skills/*.md` directly. No adapter needed. | same | Invoke by telling Codex to follow `docs/skills/create-slide.md`. |
 
 **Non-agentic fallback:** A single-agent session (no subagent dispatch) should still **mentally run through the 6 checks** — brief clarity, narrative hierarchy, template fit, visual drama, theme compliance, and 7-point QA — before presenting output.

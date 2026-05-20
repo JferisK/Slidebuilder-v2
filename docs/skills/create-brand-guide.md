@@ -6,6 +6,8 @@
 
 Create or update the repo Markdown Brand Guide for one uploaded PowerPoint slide master so slide-authoring agents understand the corporate-design logic behind the extracted colors, not only the raw theme values.
 
+When this skill is triggered from the one-time Settings bootstrap flow, also persist the supplied Template Context to `.slidebuilder/template-context.md` so later slide agents can load layout geometry and theme data from the repo without another manual paste.
+
 The guide is a file in the workspace, not browser state. SlideForge only shows a reminder and can copy Template Context; it never stores or edits Brand Guides in the frontend.
 
 ## Source Of Truth
@@ -49,7 +51,8 @@ If the user provides extra CI notes, incorporate them. If not, derive the guide 
    - use contrast and typical PowerPoint theme semantics (`lt1`, `dk1`, `lt2`, `dk2`, `accent1..6`)
    - use the provided tint/shade variants for soft fills and deep fills
 5. Define safe pairings, title/body/accent usage, tinted fill recipes, and combinations to avoid.
-6. Write the Markdown Brand Guide to the target file.
+6. If the prompt is explicitly a bootstrap prompt, also write `.slidebuilder/template-context.md` using the supplied Template Context block.
+7. Write the Markdown Brand Guide to the target file.
 
 ## Color Role Model
 
@@ -113,6 +116,7 @@ Write exactly one Markdown document:
 ## Quality Gates
 
 - [ ] The file path is `.slidebuilder/brand-guides/<template_id>/<master_id>.md`.
+- [ ] In bootstrap mode, `.slidebuilder/template-context.md` is also created or updated from the supplied context.
 - [ ] The guide uses only extracted PPTX/theme values and optional user CI notes.
 - [ ] No raw, newly invented brand colors.
 - [ ] Every semantic role has a token reference and rationale.

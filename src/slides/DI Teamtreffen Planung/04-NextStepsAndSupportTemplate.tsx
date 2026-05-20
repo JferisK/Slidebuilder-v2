@@ -4,66 +4,54 @@ import {
   CanvasFrame,
   PromptCard,
   PromptList,
-  SegmentPill,
   TemplateTitle,
 } from "./_shared";
 
 const TitleSlot: React.FC = () => (
   <TemplateTitle
     eyebrow="DI Teamtreffen Planung"
-    title="Update-Template 04 · Naechste Schritte und Bedarf aus der Runde"
-    subtitle="Leere Abschlussfolie fuer das Update: was als Naechstes ansteht, welche Entscheidungen benoetigt werden und wo Unterstuetzung aus der Runde gebraucht wird. Hier liegen die BMC-Dimensionen Einnahmelogik und Kostenstruktur."
-    badges={["Pflichtfolie", "BMC 8-9", "ohne Vorinhalt"]}
+    title="Update-Rahmen 04 · Naechste Schritte und was aus der Runde hilft"
+    subtitle="Zum Abschluss soll klar werden, was als Naechstes ansteht, welche Wirkung ihr damit verbindet und an welcher Stelle Rueckhalt, Entscheidungen oder Sparring hilfreich sind."
+    badges={["Update-Rahmen", "Abschluss", "Call into the room"]}
   />
 );
 
 const BodySlot: React.FC = () => (
-  <CanvasFrame className="grid-cols-[1.15fr_0.85fr] grid-rows-[auto_1fr]">
-    <div className="col-span-2 flex flex-wrap gap-2">
-      {[
-        "Einnahmelogik / Nutzenhebel",
-        "Kostenstruktur",
-        "Entscheidungsbedarf",
-      ].map((label, index) => (
-        <SegmentPill key={label} label={label} tone={index === 1 ? "accent" : "default"} />
-      ))}
-    </div>
+  <CanvasFrame className="grid-cols-[1.15fr_0.85fr] grid-rows-[1fr_auto]">
     <PromptCard
       label="Naechster Schritt"
-      prompt="Was plant das Team als Naechstes, wie entsteht daraus Nutzen oder Einnahmewirkung und bis wann soll sichtbarer Fortschritt da sein?"
-      hint="Hier spaeter die naechsten Schritte, Owner und den erwarteten Nutzenhebel oder Beitrag eintragen."
+      prompt="Was ist der naechste sinnvolle Schritt, den ihr aus diesem Update heraus anstossen wollt, und woran merkt man danach Wirkung?"
+      hint="Das kann ein konkreter Arbeitsschritt, eine Entscheidung, ein Test oder ein Fokus fuer die naechste Etappe sein."
+      className="row-span-2"
     />
     <PromptList
-      title="Support aus der Runde"
+      title="Was aus der Runde wirklich hilft"
       items={[
-        "Welche Entscheidung wird fuer Einnahmelogik, Business Impact oder Priorisierung benoetigt?",
-        "Wo fehlt Budget, Zugang, Sparring oder Freigabe mit Blick auf die Kostenstruktur?",
-        "Welche Rueckmeldung soll direkt im Treffen eingesammelt werden?",
+        "Welche Entscheidung, Freigabe oder Rueckmeldung wuerde den naechsten Schritt spuerbar erleichtern?",
+        "Wo hilft Zugang, Sparring, Vernetzung oder Priorisierung mehr als noch eine weitere Folie?",
+        "Welche Frage wollt ihr bewusst in den Raum geben, damit sie dort bearbeitet werden kann?",
       ]}
       accent
     />
-    <PromptList
-      title="Abschlusslogik"
-      items={[
-        "Naechsten Schritt konkret formulieren",
-        "Einnahmelogik oder Nutzenannahme explizit machen",
-        "Kosten, Investitionen oder laufenden Aufwand sichtbar machen",
-      ]}
+    <PromptCard
+      label="Entscheidungslogik"
+      prompt="Welcher Nutzenhebel, welcher Aufwand und welche Diskussion sollen fuer die Runde unmittelbar sichtbar sein?"
+      hint="Die Abschlussfolie darf klar fuehren, ohne wie ein Steuerungstableau auszusehen."
+      tone="accent"
     />
     <PromptCard
-      label="Meeting-Nutzen"
-      prompt="Welche Diskussion zu Nutzenhebel, Kostenstruktur oder Priorisierung soll das Team im Raum bewusst ausloesen?"
-      hint="Die vierte Folie ist kein Appendix, sondern der operative Call to action des Updates mit wirtschaftlicher Perspektive."
-      tone="accent"
+      label="In die Runde geben"
+      prompt="Welche Diskussion oder welche Form von Rueckhalt soll diese Folie im Raum ausloesen?"
+      hint="Die Abschlussfolie darf klar sein, ohne nach Steuerung auszusehen: wichtig ist, dass andere verstehen, wo sie sinnvoll andocken koennen."
     />
   </CanvasFrame>
 );
 
 const NextStepsAndSupportTemplate: CodeSlide = {
   id: "ditp-04-next-steps-support-template",
-  name: "04 · Update-Template: Naechste Schritte und Bedarf",
+  name: "04 · Update-Rahmen: Naechste Schritte und Bedarf",
   description:
-    "Leere Abschlussfolie fuer Next Steps, benoetigte Entscheidungen und konkrete Unterstuetzung aus der Runde.",
+    "Offene Abschlussfolie fuer naechste Schritte, wirtschaftliche Stoerke und konkrete Unterstuetzung aus der Runde.",
   slots: [
     {
       key: "title",
@@ -74,7 +62,7 @@ const NextStepsAndSupportTemplate: CodeSlide = {
     {
       key: "content",
       label: "Inhalt",
-      description: "Prompt-Flachen fuer Next Steps, Entscheidungen und Supportbedarf.",
+      description: "Leitflaechen fuer naechste Schritte, wirtschaftliche Einordnung und hilfreiche Rueckmeldungen aus der Runde.",
       Component: BodySlot,
     },
   ],

@@ -199,13 +199,116 @@ const PlaceholderList: React.FC<PlaceholderListProps> = ({
   );
 };
 
-type BrandGuideInstructionPlatform = "claude" | "copilot";
+function formatAspectRatio(widthEmu: number, heightEmu: number): string {
+  const ratio = widthEmu / heightEmu;
+  const knownRatios = [
+    { label: "16:9", value: 16 / 9 },
+    { label: "16:10", value: 16 / 10 },
+    { label: "4:3", value: 4 / 3 },
+  ];
 
-const BRAND_GUIDE_PLATFORM_OPTIONS = [
-  { value: "claude", label: "Claude Code" },
-  { value: "copilot", label: "GitHub Copilot" },
-] satisfies Array<{ value: BrandGuideInstructionPlatform; label: string }>;
+  const match = knownRatios.find(
+    (candidate) => Math.abs(candidate.value - ratio) < 0.02,
+  );
 
+  return match ? match.label : `custom ${widthEmu}x${heightEmu}`;
+}
+
+function formatPercent(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+}
+
+function buildTemplateContextExport({
+  presentation,
+  master,
+  activeLayout,
+  templateId,
+  brandGuidePath,
+  brandGuideExists,
+}: {
+  presentation: { slideSize: { widthEmu: number; heightEmu: number } };
+  master: SlideMaster;
+  activeLayout: PlaceholderListProps["placeholders"] extends never ? never : { id: string; name: string; placeholders: Placeholder[] };
+  templateId?: string;
+  brandGuidePath: string;
+  brandGuideExists: boolean;
+}): string {
+  const { widthEmu, heightEmu } = presentation.slideSize;
+  const themeLines = Object.entries(master.theme.cssVars)
+    .map(([key, value]) => `  ${key}: ${JSON.stringify(value)}`)
+    .join("\n");
+
+  const paletteLines = (master.theme.palette ?? [])
+    .filter((family) => !["hlink", "folHlink"].includes(family.key))
+    .map((family) => {
+      const variantLines = family.variants
+        .map(
+          (variant) =>
+            `      - label: ${JSON.stringify(variant.label)}\n        color: ${JSON.stringify(variant.color)}`,
+        )
+        .join("\n");
+
+      return [
+        `  ${family.key}:`,
+        `    label: ${JSON.stringify(family.label)}`,
+        `    color: ${JSON.stringify(family.color)}`,
+        "    variants:",
+        variantLines || '      - label: "(none)"\n        color: ""',
+      ].join("\n");
+    })
+    .join("\n");
+
+  const formatPlaceholders = (placeholders: Placeholder[]) =>
+    placeholders
+      .map((placeholder) => [
+        "    -",
+        `      idx: ${placeholder.idx}`,
+        `      type: ${JSON.stringify(placeholder.type)}`,
+        `      x: ${formatPercent(placeholder.position.x)}`,
+        `      y: ${formatPercent(placeholder.position.y)}`,
+        `      w: ${formatPercent(placeholder.position.w)}`,
+        `      h: ${formatPercent(placeholder.position.h)}`,
+        `      source: ${JSON.stringify(placeholder.source ?? "unknown")}`,
+      ].join("\n"))
+      .join("\n");
+
+  const layoutLines = master.layouts.slice(0, 10).map((layout) => [
+    "  -",
+    `    id: ${JSON.stringify(layout.id)}`,
+    `    name: ${JSON.stringify(layout.name)}`,
+    "    placeholders:",
+    formatPlaceholders(layout.placeholders) || '    - idx: -1\n      type: "(none)"\n      x: 0\n      y: 0\n      w: 0\n      h: 0\n      source: "unknown"',
+  ].join("\n")).join("\n");
+
+  return [
+    "# Template Context",
+    'source: "settings-panel"',
+    'template_context_repo_path: ".slidebuilder/template-context.md"',
+    `template_id: ${JSON.stringify(templateId ?? "(unknown)")}`,
+    `master_id: ${JSON.stringify(master.id)}`,
+    `master_name: ${JSON.stringify(master.name)}`,
+    `aspect_ratio: ${JSON.stringify(formatAspectRatio(widthEmu, heightEmu))}`,
+    `slide_size_emu: { cx: ${widthEmu}, cy: ${heightEmu} }`,
+    "theme:",
+    themeLines,
+    "powerpoint_palette:",
+    paletteLines || "  {}",
+    `brand_guide_path: ${JSON.stringify(brandGuidePath)}`,
+    `expected_path: ${JSON.stringify(brandGuidePath)}`,
+    `brand_guide_status: ${JSON.stringify(brandGuideExists ? "present" : "missing")}`,
+    "active_layout:",
+    `  id: ${JSON.stringify(activeLayout.id)}`,
+    `  name: ${JSON.stringify(activeLayout.name)}`,
+    "  placeholders:",
+    formatPlaceholders(activeLayout.placeholders) || '    - idx: -1\n      type: "(none)"\n      x: 0\n      y: 0\n      w: 0\n      h: 0\n      source: "unknown"',
+    "layouts:",
+    layoutLines || "  []",
+    "notes:",
+    '  - Brand Guide covers theme, fonts and brand rules.',
+    '  - Template Context adds slide size and placeholder geometry for fit checks.',
+    '  - Use active_layout for one-slide creation or review tasks.',
+  ].join("\n");
+}
 
 /** Small color swatch */
 const Swatch: React.FC<{ color: string; label: string }> = ({
@@ -290,60 +393,34 @@ function copyablePalette(master: SlideMaster): string {
 
 
 function buildBrandGuideInstructions({
-  platform,
   brandGuidePath,
-  master,
+  templateContext,
 }: {
-  platform: BrandGuideInstructionPlatform;
   brandGuidePath: string;
-  master: SlideMaster;
+  templateContext: string;
 }): string {
-  const theme = master.theme.cssVars;
-  const coreVars = Object.entries(theme)
-    .filter(([key]) => key.startsWith("--slide-"))
-    .map(([key, value]) => `  ${key}: ${value}`)
-    .join("\n");
-  const paletteLines = (master.theme.palette ?? [])
-    .filter((e) => !["hlink", "folHlink"].includes(e.key))
-    .map((e) => `  ${e.key} (${e.label}): ${e.color}`)
-    .join("\n");
-
-  const masterHeader = [
-    `master_id: "${master.id}"`,
-    `master_name: "${master.name}"`,
-    `expected_path: "${brandGuidePath}"`,
-  ].join("\n");
-
-  const masterData = [
-    "## Kern-CSS-Vars",
-    coreVars,
-    "",
-    "## PowerPoint-Palette",
-    paletteLines || "  (keine)",
-  ].join("\n");
-
-  if (platform === "claude") {
-    return [
-      "/create-brand-guide",
-      "",
-      "Ausführen im Repo-Root. Claude erstellt danach die Brand-Guide-Datei.",
-      "",
-      masterHeader,
-      "",
-      masterData,
-    ].join("\n");
-  }
-
   return [
-    "create-brand-guide.prompt.md",
+    "Ich arbeite im Repo Slidebuilder-v2 und fuehre den einmaligen Template-Bootstrap fuer einen aktiven PPTX-Master aus.",
     "",
-    "1. Copilot Chat → Agent Mode öffnen",
-    "2. Prompt starten: .github/prompts/create-brand-guide.prompt.md",
-    "3. Folgenden Template Context einfügen wenn gefragt:",
+    "Arbeite direkt auf Basis dieses Prompts. Starte keinen separaten Slash-Command und verlange keinen zweiten Kontext-Export.",
+    "Lies docs/skills/create-brand-guide.md fuer Brand-Guide-Konventionen und docs/skills/load-template-context.md fuer die erwartete Struktur des Template Context.",
+    "Erstelle oder aktualisiere alle Repo-Artefakte, die spaetere Slide-Agents fuer create-slide brauchen.",
+    "Schreibe oder aktualisiere zuerst .slidebuilder/template-context.md auf Basis des unten eingebetteten Template Context.",
+    "Erstelle oder aktualisiere danach genau die Brand-Guide-Datei fuer den Master am unten angegebenen expected_path.",
+    "Wenn zusaetzliche CI-Hinweise fehlen, frage genau einmal danach. Wenn keine kommen, leite den Guide aus dem PPTX-Master ab.",
+    "Nach diesem Bootstrap sollen spaetere create-slide- und load-template-context-Aufrufe die benoetigten Infos direkt aus dem Repo lesen koennen, ohne erneuten Settings-Paste.",
     "",
-    masterHeader,
+    "## Optional CI Notes",
+    "Wenn keine zusaetzlichen CI-Vorgaben vorliegen, diesen Block leer lassen oder ignorieren.",
+    "- CI Notes: <optional>",
     "",
-    masterData,
+    "## Required Outputs",
+    "1. .slidebuilder/template-context.md",
+    `2. ${brandGuidePath}`,
+    "",
+    `## Brand Guide Target\nexpected_path: ${JSON.stringify(brandGuidePath)}`,
+    "",
+    templateContext,
   ].join("\n");
 }
 
@@ -377,8 +454,6 @@ export const SettingsPanel: React.FC = () => {
     (s) => s.togglePlaceholderHidden,
   );
   const fileRef = React.useRef<HTMLInputElement>(null);
-  const [brandGuideInstructionPlatform, setBrandGuideInstructionPlatform] =
-    React.useState<BrandGuideInstructionPlatform>("claude");
 
   const activeTemplate = activeTemplateId
     ? templates.find((t) => t.id === activeTemplateId)
@@ -473,7 +548,9 @@ export const SettingsPanel: React.FC = () => {
   const brandGuidePath = activeTemplate
     ? `.slidebuilder/brand-guides/${activeTemplate.id}/${activeMaster.id}.md`
     : `.slidebuilder/brand-guides/${activeMaster.id}.md`;
+  const templateContextPath = ".slidebuilder/template-context.md";
   const [brandGuideExists, setBrandGuideExists] = React.useState(false);
+  const [templateContextExists, setTemplateContextExists] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
     fetch(`/${brandGuidePath}`, { method: "HEAD" })
@@ -481,6 +558,13 @@ export const SettingsPanel: React.FC = () => {
       .catch(() => { if (!cancelled) setBrandGuideExists(false); });
     return () => { cancelled = true; };
   }, [brandGuidePath]);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/${templateContextPath}`, { method: "HEAD" })
+      .then((res) => { if (!cancelled) setTemplateContextExists(res.ok); })
+      .catch(() => { if (!cancelled) setTemplateContextExists(false); });
+    return () => { cancelled = true; };
+  }, [templateContextPath]);
   const copyText = async (value: string, success: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -651,49 +735,57 @@ export const SettingsPanel: React.FC = () => {
 
         <CollapsibleSection label="Brand Guide" defaultOpen={true}>
           <div className="flex flex-col gap-2">
-            {brandGuideExists ? (
+            {brandGuideExists && templateContextExists ? (
               <div className="flex flex-col gap-1.5 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
                 <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--app-text)]">
                   <FileText size={11} />
-                  Guide aktiv für „{activeMaster.name}"
+                  Bootstrap aktiv fuer „{activeMaster.name}"
                 </div>
                 <div className="text-[9px] leading-snug text-[var(--app-muted)]">
-                  Die KI kennt Farben, Fonts und Brand-Regeln dieses Masters.
+                  Brand Guide und Template Context liegen bereits im Repo. Spaetere Slide-Agents koennen CD, Fonts, Farben und Layout-Geometrie direkt daraus lesen.
                 </div>
                 <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1 font-mono text-[8px] leading-snug text-[var(--app-muted)]">
                   {brandGuidePath}
                 </div>
+                <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1 font-mono text-[8px] leading-snug text-[var(--app-muted)]">
+                  {templateContextPath}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-2 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
-                <Select
-                  value={brandGuideInstructionPlatform}
-                  options={BRAND_GUIDE_PLATFORM_OPTIONS}
-                  onValueChange={(value) =>
-                    setBrandGuideInstructionPlatform(
-                      value as BrandGuideInstructionPlatform,
-                    )
-                  }
-                />
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
+                  onClick={() => {
+                    const templateContext = buildTemplateContextExport({
+                      presentation,
+                      master: activeMaster,
+                      activeLayout: activeLayout ?? activeMaster.layouts[0],
+                      templateId: activeTemplateId ?? undefined,
+                      brandGuidePath,
+                      brandGuideExists,
+                    });
+
                     copyText(
                       buildBrandGuideInstructions({
-                        platform: brandGuideInstructionPlatform,
                         brandGuidePath,
-                        master: activeMaster,
+                        templateContext,
                       }),
-                      "Anweisungen kopiert",
-                    )
-                  }
+                      "Brand-Guide-Prompt kopiert",
+                    );
+                  }}
                 >
                   <Clipboard size={12} />
-                  Anweisungen kopieren
+                  Prompt kopieren
                 </Button>
                 <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1.5 font-mono text-[9px] leading-snug text-[var(--app-muted)]">
                   {brandGuidePath}
+                </div>
+                <div className="rounded border border-[var(--app-border)] bg-[var(--app-panel)] p-1.5 font-mono text-[9px] leading-snug text-[var(--app-muted)]">
+                  {templateContextPath}
+                </div>
+                <div className="text-[9px] leading-snug text-[var(--app-muted)]">
+                  Einmal in Copilot einfuegen. Der Prompt soll sowohl den fehlenden Brand Guide als auch .slidebuilder/template-context.md erzeugen oder aktualisieren.
                 </div>
               </div>
             )}

@@ -41,7 +41,7 @@ Die App erzeugt Kontext-Prompts mit Master, Layout, Theme-Variablen, Placeholder
 
 **Was tippst du:** den Prompt `/create-slide` oder den aus SlideForge kopierten Kontext im Copilot-Chat.
 
-**Was passiert:** Copilot nutzt die Chatmodes und Prompts unter `.github/`, liest aber dieselben kanonischen Specs wie die anderen Plattformen.
+**Was passiert:** Copilot nutzt die Custom Agents und Prompts unter `.github/`, liest aber dieselben kanonischen Specs wie die anderen Plattformen.
 
 ### OpenAI Codex
 

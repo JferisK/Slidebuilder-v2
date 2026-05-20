@@ -1,5 +1,20 @@
 import type { CodeSlide } from "./types";
 import DoraPamCisoSlide from "./dora-pam/DoraPamCisoSlide";
+import PamEvaluationArchitectureSlide from "./dora-pam/PamEvaluationArchitectureSlide";
+import PamArchitectureRiskSlide from "./dora-pam/PamArchitectureRiskSlide";
+import PamVaultingControlFlowSlide from "./dora-pam/PamVaultingControlFlowSlide";
+import {
+  CustomerNeedTemplate,
+  NextStepsAndSupportTemplate,
+  ProgressSinceSolutionDaysTemplate,
+  TopicAndScopeTemplate,
+} from "./DI Teamtreffen Planung";
+import {
+  CustomerNeedUpdate,
+  NextStepsAndSupportUpdate,
+  ProgressSinceSolutionDaysUpdate,
+  SolutionScopeUpdate,
+} from "./DI Teamtreffen Juli 2026";
 import {
   AiAgentsIdentitiesSlide,
   AppAssignmentSlide,
@@ -175,6 +190,21 @@ export const codeSlides: RegisteredCodeSlide[] = [
     sourceFolder: "dora-pam",
     kind: "production",
   },
+  {
+    ...PamArchitectureRiskSlide,
+    sourceFolder: "dora-pam",
+    kind: "production",
+  },
+  {
+    ...PamEvaluationArchitectureSlide,
+    sourceFolder: "dora-pam",
+    kind: "production",
+  },
+  {
+    ...PamVaultingControlFlowSlide,
+    sourceFolder: "dora-pam",
+    kind: "production",
+  },
 ];
 
 /**
@@ -213,8 +243,29 @@ export const slideTemplates: RegisteredCodeSlide[] = [
 ].map((slide) => ({
   ...slide,
   sourceFolder: "templates",
-  kind: "template",
-}));
+  kind: "template" as const,
+})).concat(
+  [
+    TopicAndScopeTemplate,
+    CustomerNeedTemplate,
+    ProgressSinceSolutionDaysTemplate,
+    NextStepsAndSupportTemplate,
+  ].map((slide) => ({
+    ...slide,
+    sourceFolder: "DI Teamtreffen Planung",
+    kind: "template" as const,
+  })),
+  [
+    SolutionScopeUpdate,
+    CustomerNeedUpdate,
+    ProgressSinceSolutionDaysUpdate,
+    NextStepsAndSupportUpdate,
+  ].map((slide) => ({
+    ...slide,
+    sourceFolder: "DI Teamtreffen Juli 2026",
+    kind: "template" as const,
+  })),
+);
 
 /**
  * Looks up any code-slide by id — searches production slides first, then

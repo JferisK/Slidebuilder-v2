@@ -15,11 +15,11 @@ The Project Manager consumes this context as part of its Brief Lock. The Content
 
 ## Source of truth (in priority order)
 
-1. **`.slidebuilder/template-context.md`** — once Stage 2 lands, this is the canonical file. Read it first; if present and recent, use it verbatim.
-2. **Brand Guide file** — read `.slidebuilder/brand-guides/<template_id>/<master_id>.md` when present. This repo Markdown file is the source of truth.
-3. **`buildCopilotPrompt()` output** (`src/components/AnnotationLayer.tsx`) — embedded in any copy-prompt action from the running app. Contains theme cssVars, the expected Brand Guide path, aspect, and placeholder positions.
-4. **`src/store/slideStore.ts`** — the live Zustand store while the app is running. If you have access to runtime state, read `activePresentation.theme.cssVars`, `activeMaster.theme.palette`, and `slides[].layout`. Brand Guides are not stored in browser state.
-4. **Fallback**: if none of the above is available, **do not fabricate values**. Respond: "Kein Template-Kontext gefunden. Bitte lade eine PPTX in der App und exportiere den Kontext, oder füge den `buildCopilotPrompt`-Output ein."
+1. **`.slidebuilder/template-context.md`** — this is the canonical repo artifact after the one-time Settings bootstrap. Read it first; if present and recent, use it verbatim.
+2. **Brand Guide file** — read `.slidebuilder/brand-guides/<template_id>/<master_id>.md` when present. This repo Markdown file is the source of truth for theme, fonts, and brand rules, but not for placeholder geometry.
+3. **Settings bootstrap prompt** — if the repo file is missing and the app is running, use the `Brand Guide -> Prompt kopieren` action once. That bootstrap is expected to create both `.slidebuilder/template-context.md` and the master-specific Brand Guide file.
+4. **Settings export or runtime state** — only if bootstrap has not been run yet, use the Settings-derived context or read `src/store/slideStore.ts` + active parsed presentation to assemble the missing repo file.
+5. **Fallback**: if none of the above is available, **do not fabricate values**. Respond: "Kein Template-Kontext gefunden. Bitte fuehre den einmaligen Bootstrap aus dem Brand-Guide-Bereich im Settings-Menü aus oder teile eine aktuelle Kontext-Exportausgabe."
 
 ## What to extract
 
@@ -27,7 +27,7 @@ Produce a compact summary the next role can use:
 
 ```
 # Template Context
-source: ".slidebuilder/template-context.md" | "buildCopilotPrompt()" | "slideStore"
+source: ".slidebuilder/template-context.md" | "settings-panel" | "slideStore"
 aspect_ratio: "16:9" | "4:3" | "custom WxH"
 slide_size_emu: { cx: <number>, cy: <number> }   # from <p:sldSz> in ppt/presentation.xml
 theme:
@@ -67,6 +67,7 @@ reference_slides:
 - [ ] Every theme cssVar is present and non-empty. If a var is missing, say so explicitly — do not silently fill with a default.
 - [ ] PowerPoint palette (`lt1`, `dk1`, `lt2`, `dk2`, `accent1..6`) is included when available.
 - [ ] Brand Guide path/status is included. Missing guide is allowed, but must be explicit.
+- [ ] Do not confuse Brand Guide with Template Context. Brand Guide covers brand tokens; Template Context adds layout geometry.
 - [ ] Aspect ratio matches `slide_size_emu` (cx/cy ratio, not hardcoded).
 - [ ] Layout list is non-empty. An empty list almost always means the PPTX failed to parse.
 - [ ] Reference slides are real — do not invent content.
@@ -74,5 +75,6 @@ reference_slides:
 ## Do not
 
 - Hardcode theme values from memory of prior sessions. The active PPTX is authoritative.
+- Assume the user should keep pasting Settings exports after bootstrap. The steady-state is repo-first.
 - Cache across sessions. Always re-read on invocation.
 - Guess layout names. If the file doesn't name them, label as `Layout #N`.

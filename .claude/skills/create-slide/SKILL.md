@@ -37,7 +37,7 @@ Dense workshop slides should also prefer existing repo UI patterns (`src/compone
 
 ## Pre-flight
 
-Before dispatching Project Manager, ensure template context is loaded (see sibling skill `load-template-context`). If no PPTX is loaded, refuse and ask the user to upload one.
+Before dispatching Project Manager, ensure template context is loaded (see sibling skill `load-template-context`). If the repo artifacts are missing, tell the user to run the one-time bootstrap from `Settings -> Brand Guide -> Prompt kopieren` for the loaded PPTX.
 
 ## Post-flight
 

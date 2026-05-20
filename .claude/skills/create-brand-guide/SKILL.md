@@ -14,6 +14,7 @@ Read `docs/skills/create-brand-guide.md` in the repo root. Follow it exactly.
 ## Claude-specific behavior
 
 - Use the Template Context pasted by the user or copied from SlideForge SettingsPanel.
+- In one-time bootstrap mode, also persist `.slidebuilder/template-context.md` from the supplied Template Context before or alongside the Brand Guide write.
 - Ask the one CI-notes question from the canonical spec only if the answer is not already present.
 - Resolve the target path from `expected_path`, or use `.slidebuilder/brand-guides/<template_id>/<master_id>.md`.
 - Create or update that Markdown file.

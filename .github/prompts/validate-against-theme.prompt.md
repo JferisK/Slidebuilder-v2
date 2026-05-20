@@ -1,6 +1,9 @@
 ---
-mode: agent
+name: Validate Against Theme
 description: Scan a diff or a file under src/slides/templates/ for Theme Contract violations (hardcoded colors, pixel widths, raw hex). Reports only — does not fix. Used by Brand Guardian in Phase 3.
+argument-hint: Diff, file path, or code to scan
+agent: agent
+tools: [read, search]
 ---
 
 # /validate-against-theme

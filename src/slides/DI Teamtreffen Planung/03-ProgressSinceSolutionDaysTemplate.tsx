@@ -1,84 +1,49 @@
 import * as React from "react";
 import type { CodeSlide } from "../types";
-import { CanvasFrame, PromptList, TemplateTitle, TEMPLATE_COLORS } from "./_shared";
-
-const lanes = [
-  {
-    label: "Erledigt",
-    prompt: "Welche Schluesselaktivitaeten wurden seit den Solution Days wirklich abgeschlossen?",
-    accent: false,
-  },
-  {
-    label: "In Arbeit",
-    prompt: "Welche Schluesselressourcen oder Faehigkeiten werden aktuell aufgebaut?",
-    accent: true,
-  },
-  {
-    label: "Blockiert",
-    prompt: "Welche Schluesselpartner, Abhaengigkeiten oder externen Zuarbeiten bremsen aktuell?",
-    accent: false,
-  },
-];
+import { CanvasFrame, PromptCard, PromptList, TemplateTitle } from "./_shared";
 
 const TitleSlot: React.FC = () => (
   <TemplateTitle
     eyebrow="DI Teamtreffen Planung"
-    title="Update-Template 03 · Fortschritt seit den Solution Days"
-    subtitle="Leere Fortschrittsfolie mit klarer Trennung zwischen abgeschlossen, laufend und blockiert. Hier liegen die BMC-Dimensionen Schluesselaktivitaeten, Schluesselressourcen und Schluesselpartner."
-    badges={["Pflichtfolie", "BMC 5-7", "vergleichbar"]}
+    title="Update-Rahmen 03 · Bewegung seit den Solution Days"
+    subtitle="Hier soll sichtbar werden, was sich seit den Solution Days bewegt hat, woran ihr weiterarbeitet und wo von aussen Hebel oder Unterstuetzung wichtig werden."
+    badges={["Update-Rahmen", "Fortschritt", "vergleichbar"]}
   />
 );
 
 const BodySlot: React.FC = () => (
-  <CanvasFrame className="grid-cols-3 grid-rows-[1fr_auto]">
-    {lanes.map((lane) => (
-      <div
-        key={lane.label}
-        className="flex h-full flex-col rounded-[22px] border border-dashed px-4 py-3"
-        style={{
-          background: lane.accent ? "color-mix(in srgb, var(--slide-accent) 14%, transparent)" : "var(--slide-bg)",
-          borderColor: lane.accent ? "var(--slide-accent)" : "color-mix(in srgb, var(--slide-text-muted) 40%, transparent)",
-        }}
-      >
-        <div
-          className="text-[10px] uppercase tracking-[0.18em]"
-          style={{
-            color: lane.accent ? "var(--slide-accent)" : TEMPLATE_COLORS.textMuted,
-            fontFamily: TEMPLATE_COLORS.body,
-          }}
-        >
-          {lane.label}
-        </div>
-        <div
-          className="mt-2 text-[15px] font-semibold leading-tight"
-          style={{ color: TEMPLATE_COLORS.text, fontFamily: TEMPLATE_COLORS.heading }}
-        >
-          {lane.prompt}
-        </div>
-        <div className="mt-3 flex flex-1 flex-col gap-2">
-          {["Placeholder 1", "Placeholder 2", "Placeholder 3"].map((item) => (
-            <div
-              key={`${lane.label}-${item}`}
-              className="rounded-[16px] border border-dashed px-3 py-2 text-[10px]"
-              style={{
-                borderColor: lane.accent ? "var(--slide-accent)" : TEMPLATE_COLORS.borderMuted,
-                color: TEMPLATE_COLORS.textMuted,
-                fontFamily: TEMPLATE_COLORS.body,
-              }}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      </div>
-    ))}
-    <div className="col-span-3">
+  <CanvasFrame className="grid-cols-[1.15fr_0.85fr] grid-rows-[1fr_1fr_auto]">
+    <PromptCard
+      label="Seit den Solution Days"
+      prompt="Was hat sich seit den Solution Days sichtbar veraendert und woran laesst sich diese Bewegung heute am besten zeigen?"
+      hint="Das kann ein erreichter Meilenstein, ein neuer Stand im Team, eine validierte Richtung oder eine greifbare Lernkurve sein."
+      className="row-span-2"
+      tone="accent"
+    />
+    <PromptList
+      title="Was inzwischen belastbar ist"
+      items={[
+        "Welche Aktivitaeten, Ergebnisse oder Artefakte sind inzwischen belastbar geworden?",
+        "Welche Faehigkeiten, Ressourcen oder Setup-Bausteine stehen heute besser als noch bei den Solution Days?",
+        "Welche Aussage koennt ihr mit gutem Gewissen als Fortschritt vertreten?",
+      ]}
+    />
+    <PromptList
+      title="Wo die naechsten Hebel liegen"
+      items={[
+        "Woran arbeitet ihr gerade weiter, damit aus Bewegung ein belastbarer naechster Schritt wird?",
+        "Welche Partner, Entscheidungen oder Zuarbeiten wuerden die Entwicklung deutlich beschleunigen?",
+        "Welche offene Stelle ist wichtig genug, um sie in der Runde bewusst sichtbar zu machen?",
+      ]}
+      accent
+    />
+    <div className="col-span-2">
       <PromptList
-        title="Nachweis der Bewegung"
+        title="Management-Ton statt Aktivitaetenliste"
         items={[
-          "Welche sichtbare Veraenderung gibt es bei Aktivitaeten, Ressourcen oder Partnern?",
-          "Was wurde konkret erarbeitet, getestet, besetzt oder abgestimmt?",
-          "Wo braucht es im Meeting eine Diskussion zu Partnern, Ressourcen oder Faehigkeiten?",
+          "Lieber wenige klare Fortschrittssignale zeigen als jede Kleinigkeit listen",
+          "Offene Punkte duerfen sichtbar bleiben, wenn klar ist, warum sie gerade zaehlen",
+          "Wenn ihr Unterstuetzung braucht, den Hebel und den erwarteten Effekt konkret machen",
         ]}
         accent
       />
@@ -88,20 +53,20 @@ const BodySlot: React.FC = () => (
 
 const ProgressSinceSolutionDaysTemplate: CodeSlide = {
   id: "ditp-03-progress-since-solution-days-template",
-  name: "03 · Update-Template: Fortschritt seit Solution Days",
+  name: "03 · Update-Rahmen: Bewegung seit Solution Days",
   description:
-    "Leere Statusfolie mit drei Bahnen fuer erledigt, in Arbeit und blockiert sowie einem unteren Nachweis-Strip.",
+    "Offene Fortschrittsfolie fuer sichtbare Bewegung, aktuelle Hebel und den naechsten inhaltlichen Anschlusspunkt.",
   slots: [
     {
       key: "title",
       label: "Titel",
-      description: "Titelband fuer Fortschritts-Updates.",
+      description: "Titelband fuer Fortschritts- und Bewegungsupdates.",
       Component: TitleSlot,
     },
     {
       key: "content",
       label: "Inhalt",
-      description: "Drei Status-Bahnen plus Leitfragen fuer echten Fortschritt.",
+      description: "Leitflaechen fuer sichtbare Bewegung, laufende Hebel und relevante Unterstuetzung.",
       Component: BodySlot,
     },
   ],

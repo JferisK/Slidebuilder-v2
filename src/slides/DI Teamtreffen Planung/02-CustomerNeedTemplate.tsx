@@ -4,52 +4,47 @@ import {
   CanvasFrame,
   PromptCard,
   PromptList,
-  SegmentPill,
   TemplateTitle,
 } from "./_shared";
 
 const TitleSlot: React.FC = () => (
   <TemplateTitle
     eyebrow="DI Teamtreffen Planung"
-    title="Update-Template 02 · Bedarf und Relevanz"
-    subtitle="Leere Struktur fuer die zweite Update-Folie: Kundennutzen, Bedarf oder Problemraum benennen. Hier liegen die BMC-Dimensionen Kanaele und Kundenbeziehungen."
-    badges={["Pflichtfolie", "BMC 3-4", "noch ohne Inhalt"]}
+    title="Update-Rahmen 02 · Bedarf, Relevanz und Zugang"
+    subtitle="Diese Folie soll greifbar machen, warum das Thema relevant ist, in welchem Kontext es auftaucht und wie ihr den Zugang zur Zielgruppe heute denkt."
+    badges={["Update-Rahmen", "Kundenperspektive", "offen formulierbar"]}
   />
 );
 
 const BodySlot: React.FC = () => (
-  <CanvasFrame className="grid-cols-2 grid-rows-[auto_1fr]">
-    <div className="col-span-2 flex flex-wrap gap-2">
-      {["Kanaele", "Kundenbeziehungen", "Relevanz"].map((label, index) => (
-        <SegmentPill key={label} label={label} tone={index === 1 ? "accent" : "default"} />
-      ))}
-    </div>
+  <CanvasFrame className="grid-cols-[1.05fr_0.95fr] grid-rows-[1fr_auto]">
     <PromptCard
-      label="Kontext"
-      prompt="Bei wem taucht das Problem auf, ueber welche Kanaele erreichen wir dieses Segment und in welcher Situation?"
-      hint="Hier spaeter Kundensituation, Stakeholder-Kontext und erste Hinweise auf Kanal oder Touchpoint platzieren."
+      label="Problemraum"
+      prompt="Woran merkt das Umfeld heute, dass hier ein relevantes Problem, ein Bedarf oder eine echte Gelegenheit liegt?"
+      hint="Hilfreich sind Situationen, Trigger oder Beobachtungen, an denen andere sofort verstehen, warum die Solution nicht abstrakt bleibt."
+      className="row-span-2"
     />
     <PromptCard
-      label="Bedarf"
-      prompt="Welche Kundenbeziehung und welches konkrete Beduerfnis soll die Solution adressieren?"
-      hint="Keine Vision-Claims. Lieber konkrete Beziehung, Trigger, Engpass oder Erwartung des Kunden benennen."
+      label="Go-to-Need"
+      prompt="Wie soll der Zugang zur Zielgruppe aussehen, damit die Loesung glaubwuerdig andockt und nicht wie ein allgemeines Versprechen wirkt?"
+      hint="Das kann ein Kanal, ein wiederkehrender Kontaktpunkt, ein konkreter Use Case oder ein vertrauter Arbeitskontext sein."
       tone="accent"
     />
     <PromptList
-      title="Pflichtfragen"
+      title="Woran Relevanz haengen sollte"
       items={[
-        "Welcher Kanal oder welcher Zugang zum Kunden ist fuer dieses Thema realistisch?",
-        "Wie soll die Beziehung zum Kunden aussehen: beratend, operativ, wiederkehrend oder punktuell?",
-        "Warum ist genau diese Kombination aus Kanal und Beziehung jetzt relevant?",
+        "Welche Situation oder welches Verhalten zeigt am besten, warum das Thema jetzt relevant ist?",
+        "Welcher Zugang zur Zielgruppe fuehlt sich realistisch und anschlussfaehig an?",
+        "Welche Art von Beziehung oder Zusammenarbeit macht die Loesung fuer andere plausibel?",
       ]}
       accent
     />
     <PromptList
-      title="Nicht vergessen"
+      title="Was sauber als Annahme markiert werden darf"
       items={[
-        "Keine Produktwerbung statt Beziehungslogik",
-        "Wenn der Kanal noch offen ist: als Annahme kennzeichnen",
-        "Wenn die Kundenbeziehung noch unklar ist: Spannungsfeld sichtbar machen",
+        "Wenn der Zugangskanal noch nicht feststeht, lieber sauber als Hypothese benennen",
+        "Wenn die Zielbeziehung noch reift, das Spannungsfeld sichtbar machen statt es glattzuziehen",
+        "Nicht in Produktwerbung kippen: Die Relevanz soll aus dem Bedarf kommen, nicht aus Claims",
       ]}
     />
   </CanvasFrame>
@@ -57,20 +52,20 @@ const BodySlot: React.FC = () => (
 
 const CustomerNeedTemplate: CodeSlide = {
   id: "ditp-02-customer-need-template",
-  name: "02 · Update-Template: Bedarf und Relevanz",
+  name: "02 · Update-Rahmen: Bedarf, Relevanz und Zugang",
   description:
-    "Leere Folie fuer Zielkunde, Problemraum und Relevanz des Themas im internen Fortschrittsupdate.",
+    "Offene Folie fuer Problemraum, Relevanz und den gedachten Zugang zur Zielgruppe im internen Fortschrittsupdate.",
   slots: [
     {
       key: "title",
       label: "Titel",
-      description: "Titelband fuer Bedarf und Relevanz.",
+      description: "Titelband fuer Bedarf, Relevanz und Zugang.",
       Component: TitleSlot,
     },
     {
       key: "content",
       label: "Inhalt",
-      description: "Prompt-Flachen fuer Kontext, Bedarf und Anschlussfaehigkeit.",
+      description: "Leitflaechen fuer Ausgangslage, Zugang und Kundenrelevanz.",
       Component: BodySlot,
     },
   ],

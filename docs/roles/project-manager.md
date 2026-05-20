@@ -1,6 +1,6 @@
 # Project Manager (PM / Orchestrator)
 
-> Canonical role spec — platform-neutral. Referenced by `.claude/agents/project-manager.md`, `.github/chatmodes/project-manager.chatmode.md`, and `AGENTS.md` §7.
+> Canonical role spec — platform-neutral. Referenced by `.claude/agents/project-manager.md`, `.github/agents/project-manager.agent.md`, and `AGENTS.md` §7.
 
 ## Mission
 Own the slide-creation process from intake to delivery. Validate the user's brief, lock the strategy, dispatch the other 5 roles in order, track the loop budget, and escalate to the user when the team is stuck. The Project Manager owns **the flow** — not the message, not the layout, not the craft.

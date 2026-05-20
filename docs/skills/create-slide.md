@@ -3,7 +3,7 @@
 > Canonical skill spec — platform-neutral. Referenced by `.claude/commands/create-slide.md`, `.claude/skills/create-slide/SKILL.md`, `.github/prompts/create-slide.prompt.md`. Codex reads this file directly.
 
 ## Purpose
-Orchestrate the 6-role agency team through 4 phases (Intake → Concept → Design → QA) to produce a single slide that answers the user's brief in the visual identity of the currently loaded PPTX.
+Orchestrate the 6-role agency team through 4 phases (Intake → Concept → Design → QA) to produce a single slide that answers the user's brief in the visual identity of the currently loaded PPTX, then validate it through a render-backed review loop before handing it to the user.
 
 ## When to invoke
 - User asks "baue mir einen Slide über X" / "create a slide about X".
@@ -24,10 +24,33 @@ Orchestrate the 6-role agency team through 4 phases (Intake → Concept → Desi
 ## Inputs
 - **Brief**: the user's free-form request.
 - **Template context**: the currently loaded PPTX's theme + layouts + repo Brand Guide path/status. Source order:
-  1. `.slidebuilder/template-context.md` (Stage 2, if it exists)
-  2. Otherwise: read theme from `src/store/slideStore.ts` / `buildCopilotPrompt` output
-  3. Otherwise: ask the user to upload a PPTX first — do not fabricate theme values
-- **Brand Guide**: if the repo file at `.slidebuilder/brand-guides/<template_id>/<master_id>.md` is present, pass it verbatim to Visual Designer, Brand Guardian, and QA. If missing, warn that brand interpretation is weaker and recommend `/create-brand-guide`, but do not hard-block slide creation.
+  1. `.slidebuilder/template-context.md` — preferred steady-state after the one-time Settings bootstrap
+  2. Otherwise: run the one-time bootstrap from the Settings `Brand Guide` section so the repo artifacts are created
+  3. Otherwise: read active theme/layout data from `src/store/slideStore.ts` only as a fallback bootstrap source — do not fabricate theme values
+- **Brand Guide**: if the repo file at `.slidebuilder/brand-guides/<template_id>/<master_id>.md` is present, pass it verbatim to Visual Designer, Brand Guardian, and QA. If missing, treat that as missing bootstrap state and recommend running the one-time Settings bootstrap prompt so both Brand Guide and Template Context are persisted.
+- **Loop artifacts**: after each executed visual re-emit, maintain a structured artifact block with touched files, render status, screenshot path, fit result, and outstanding issues. Downstream review must always consume the latest artifact block.
+
+## Loop artifact contract
+
+Every design iteration must maintain the latest artifact block in this format:
+
+```md
+# Loop Artifacts
+loop_count: <number>
+edited_files:
+  - <path>
+render_status: "ready" | "blocked" | "failed"
+screenshot_status: "available" | "missing" | "failed"
+screenshot_path: "<path or empty>"
+fit_status: "pass" | "fail" | "unknown"
+fit_issues:
+  - "<issue>"
+open_issues:
+  - "<issue>"
+next_action: "<render | illustrator_review | brand_review | qa_review | escalate | user_approval>"
+```
+
+The orchestrator owns this block. Illustrator, Brand Guardian, and QA may reject a handoff when the block is stale, missing, or inconsistent with the latest edited files.
 
 ## The 4 phases
 
@@ -48,6 +71,8 @@ brief
     - loop ≥ 2: PM re-verifies alignment explicitly (Strategy Re-Lock).
   ↓
 [Phase 3 — Design & Production]
+  Visual Designer's re-emit is executed.
+  Deterministic render/screenshot + fit check generates/refreshes Loop Artifacts.
   Illustrator reviews for focal point, metaphor, drama.
     - approve → continue
     - reject  → loop back to Visual Designer with visual_changes
@@ -57,10 +82,11 @@ brief
   Fit/Screenshot check (mechanical, no LLM) against mapped PPTX layout.
     - pass → continue
     - fail → loop back to Visual Designer with fit.issues
+  If deterministic render/screenshot generation is unavailable, stop with a blocker instead of pretending the slide is fully reviewed.
   ↓
 [Phase 4 — QA & Delivery]
   QA Manager runs the 7-point QA-Matrix.
-    - approve    → present final + process summary to user
+    - approve    → present final + latest screenshot artifact + process summary to user and wait for approval
     - loop_back  → re-dispatch qa.loop_target; increment loop_count
     - escalate   → present diagnostic + [A]/[B]/[C] options
   ↓
@@ -96,13 +122,18 @@ if loop_count >= 1:
 visual = dispatch(visual_designer, {narrative, brief_lock, template_context})
 
 # Phase 3 — Design
-illu = dispatch(illustrator, {narrative, visual})
+apply(visual.proposed_diff)
+artifacts = run_render_and_fit_check(visual, template_context)
+if artifacts.render_status != "ready" or artifacts.screenshot_status != "available":
+  present_blocker(artifacts); return
+
+illu = dispatch(illustrator, {narrative, visual, artifacts})
 if illu.verdict == "reject":
     loop_count += 1
     if loop_count >= 3: force_escalate(); return
     goto Phase 3 with visual_designer(illu.visual_changes)
 
-brand = dispatch(brand_guardian, {visual, illustrator_updates: illu.changes})
+brand = dispatch(brand_guardian, {visual, illustrator_updates: illu.changes, artifacts})
 if brand.verdict == "reject":
     loop_count += 1
     if loop_count >= 3: force_escalate(); return
@@ -116,11 +147,11 @@ if fit.verdict == "fail":
 
 # Phase 4 — QA
 qa = dispatch(qa_manager, {
-    brief_lock, narrative, visual, illu, brand, fit, loop_count,
+  brief_lock, narrative, visual, illu, brand, artifacts, fit, loop_count,
 })
 match qa.verdict:
   "approve":
-      present(final_output, process_summary); return
+    present(final_output, artifacts, process_summary); return
   "loop_back":
       loop_count += 1
       if loop_count >= 3: force_escalate(); return
@@ -155,18 +186,21 @@ If screenshot generation is unavailable, treat the slide as **not yet fully veri
 - [ ] Brand Guide path/status (`present` or `missing`) was carried from template context into Brand Guardian and QA.
 - [ ] Project Manager ran in Phase 1 (even in fast path, silently).
 - [ ] Each role's output is passed to the next role unmodified (no summarization that strips required fields).
+- [ ] The latest Loop Artifacts block was regenerated after every executed visual re-emit.
 - [ ] Loop counter is tracked and included in every QA Manager dispatch.
 - [ ] Illustrator ran before Brand Guardian (Illustrator may trigger a Visual Designer re-emit that Brand then scans).
 - [ ] Real placeholder fit was checked before QA approval.
 - [ ] Screenshot/render output was reviewed when available.
+- [ ] Missing or blocked render artifacts never produced a false QA approve.
 - [ ] On escalation, the diagnostic is presented to the user — the orchestrator does not silently retry or silently accept.
 - [ ] Final approved output uses `var(--slide-*)` (Brand Guardian would have rejected otherwise, but double-check).
 - [ ] If the user explicitly rejected a selected intro/summary block, no later loop reintroduces the same content as a paraphrased summary.
+- [ ] After QA approve, the user still receives the final approval gate with diff + screenshot artifact.
 
 ## Platform mapping
 
 - **Claude Code**: each `dispatch(role)` is a `Task` tool call with `subagent_type: <role-slug>`. Adapter files live in `.claude/agents/`.
-- **GitHub Copilot**: each `dispatch(role)` is a chatmode switch by the user (or Agent Mode). Adapters live in `.github/chatmodes/`.
+- **GitHub Copilot**: each `dispatch(role)` is a custom-agent handoff. Adapters live in `.github/agents/`.
 - **OpenAI Codex**: Codex reads this pseudocode directly and simulates the 6 roles inline, reading `docs/roles/*.md` for each role's spec.
 
 ## Dispatch instructions (platform-agnostic)
@@ -186,17 +220,17 @@ For each role, hand off the previous role's structured output **verbatim** and l
    - Output: `# Visual Output` (codeSlideId, slots, rationale, composition_notes, cognitive_load_budget, proposed_diff).
 
 4. **Illustrator** (`docs/roles/illustrator.md`)
-   - Input: Narrative Output + Visual Output + screenshot/render context when available.
+  - Input: Narrative Output + Visual Output + Loop Artifacts + screenshot/render context when available.
    - Output: `# Illustrator Verdict` — `approve` or `reject` with `visual_changes` and optional `placeholder_prompts`.
    - On reject: loop back to Visual Designer.
 
 5. **Brand Guardian** (`docs/roles/brand-guardian.md`)
-   - Input: Visual Output + Illustrator updates + Brand Guide path/status/content.
+  - Input: Visual Output + Illustrator updates + Loop Artifacts + Brand Guide path/status/content.
    - Output: `# Brand Verdict` — `approve` or `reject` with `brand_guide_status`, violations + cookbook fixes.
    - On reject: loop back to Visual Designer.
 
 6. **QA Manager** (`docs/roles/qa-manager.md`)
-   - Input: Brief Lock + Narrative Output + Visual Output + Illustrator Verdict + Brand Verdict + Brand Guide status + fit/screenshot verdict + original brief + loop counter.
+  - Input: Brief Lock + Narrative Output + Visual Output + Illustrator Verdict + Brand Verdict + Brand Guide status + Loop Artifacts + fit/screenshot verdict + original brief + loop counter.
    - Output: `# QA Verdict` — `approve` | `loop_back` | `escalate`.
 
 ## Do not
@@ -207,3 +241,4 @@ For each role, hand off the previous role's structured output **verbatim** and l
 - Let the loop exceed 3 iterations silently. Escalate.
 - Fabricate theme values if no PPTX is loaded. Refuse and ask the user to upload first.
 - Reintroduce an explicitly rejected intro/summary block as a cleaner or shorter summary. Replace it structurally or deepen it.
+- Treat a missing screenshot as equivalent to a reviewed screenshot. It is not.
